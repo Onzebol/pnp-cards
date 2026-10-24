@@ -1,5 +1,6 @@
 import { bleedRects, type Rect } from './bleed';
 import { cardSize, rotatedImage, type Size } from './cardSize';
+import { cornerRadius } from './corners';
 import { coverCrop, CROP_DPI, cropRect, type PxRect } from './crop';
 import { cutLines, type CutLines } from './cutLines';
 import type { Dpi } from './dpi';
@@ -67,6 +68,8 @@ export interface PlannedPage {
   header: HeaderPlacement | null;
   /** Regla de comprobación; solo en la primera página de cartas (o en todas), si cabe. */
   ruler: RulerPlacement | null;
+  /** Radio de las esquinas redondeadas de cada carta (pt), o 0 si van rectas. */
+  cornerRadius: number;
 }
 
 export interface DocumentPlan {
@@ -169,6 +172,7 @@ function backPage(
     cutLines: null,
     header: null,
     ruler: null,
+    cornerRadius: front.cornerRadius,
   };
 }
 
@@ -267,6 +271,7 @@ function planTemplate(
   const perPage = Math.max(1, template.slots.length);
   const lines = settings.cutLines;
   const gap = MARK_GAP + (settings.bleed.enabled ? mmToPt(settings.bleed.mm) : 0);
+  const radius = cornerRadius(settings);
   const { header, rulerOn } = pageExtras(
     settings,
     page,
@@ -300,6 +305,7 @@ function planTemplate(
       bleed: bleedRects(boxes, settings),
       header,
       ruler: rulerOn(pages.length + 1),
+      cornerRadius: radius,
       cutLines: lines.enabled
         ? {
             lineWidth: mmToPt(lines.widthHundredthsMm / 100),
@@ -345,6 +351,7 @@ export function planDocument(
   const rotations = cardRotations(settings, cards, crops);
   const sizes = cardSizes(settings, cards, crops, rotations);
   const { perPage } = resolveGrid(settings);
+  const radius = cornerRadius(settings);
   const reference = sizes[sequence[0]];
   const { header, rulerOn } = pageExtras(
     settings,
@@ -374,6 +381,7 @@ export function planDocument(
       cutLines: cutLines(settings, pageSizes[0], reference),
       header,
       ruler: rulerOn(number),
+      cornerRadius: radius,
     });
   }
 

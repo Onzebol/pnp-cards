@@ -272,4 +272,43 @@ describe('CropDialog', () => {
       expect(screen.getByText(/La regla de comprobación no cabe/)).toBeInTheDocument();
     });
   });
+
+  describe('con esquinas redondeadas', () => {
+    const clips = (container: HTMLElement) => container.querySelectorAll('clipPath rect');
+
+    it('recorta cada carta con un rectángulo redondeado del radio en puntos', () => {
+      useSettingsStore.getState().update({ corners: { rounded: true, radiusMm: 3 } });
+      useCardsStore.getState().addImages([image('a x2.png')]);
+      const { container } = render(<PagePreview />);
+      expect(clips(container)).toHaveLength(2);
+      expect(Number(clips(container)[0].getAttribute('rx'))).toBeCloseTo(8.504, 3);
+      expect(container.querySelectorAll('g[clip-path]')).toHaveLength(2);
+    });
+
+    it('sin la opción no recorta', () => {
+      useCardsStore.getState().addImages([image('a x2.png')]);
+      const { container } = render(<PagePreview />);
+      expect(clips(container)).toHaveLength(0);
+    });
+
+    it('en una carta girada, el recorte va en sus coordenadas, dentro del giro', () => {
+      useSettingsStore.getState().update({ corners: { rounded: true, radiusMm: 3 } });
+      useCardsStore.getState().addImages([image('a.png')]);
+      useCardsStore.getState().setRotation(useCardsStore.getState().cards[0].id, 90);
+      const { container } = render(<PagePreview />);
+      const clip = clips(container)[0];
+      expect(clip.getAttribute('x')).toBe('0');
+      expect(clip.getAttribute('y')).toBe('0');
+      expect(clip.closest('g[transform]')).not.toBeNull();
+    });
+
+    it('la carta en blanco también lleva las esquinas redondeadas', () => {
+      useSettingsStore.getState().update({ corners: { rounded: true, radiusMm: 3 } });
+      useCardsStore.getState().addImages([image('a.png')]);
+      useCardsStore.getState().addBlank();
+      const { container } = render(<PagePreview />);
+      const blank = container.querySelector('rect[class*="blank"]');
+      expect(Number(blank?.getAttribute('rx'))).toBeCloseTo(8.504, 3);
+    });
+  });
 });

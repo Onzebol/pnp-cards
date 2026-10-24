@@ -218,6 +218,15 @@
           "type": "p",
           "text": "With a template, each slot gets marks at its corners, with no style to choose."
         },
+        { "type": "h", "text": "Rounded corners" },
+        {
+          "type": "p",
+          "text": "With “Rounded corners”, each card (and its back) is clipped with rounded corners of the radius you set; 3 mm is the usual for poker cards. Use it to see in the preview how the cards will look after the corner punch, or to print without bleed with the corners already rounded and cut along the outline."
+        },
+        {
+          "type": "p",
+          "text": "Cut lines don’t change: they still mark the card rectangle. With the bleed on, its colour shows at the corners, under the rounding. The image is not re-encoded: it is only clipped when drawn."
+        },
         { "type": "h", "text": "Bleed" },
         {
           "type": "p",

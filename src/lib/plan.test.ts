@@ -235,6 +235,7 @@ describe('planDocument', () => {
       side: 'back',
       header: null,
       ruler: null,
+      cornerRadius: 0,
       size: { width: 595, height: 842 },
       items: [{ card: 0, placement: { x: 10, y: 20, width: 30, height: 40 }, crop: null }],
       bleed: [{ x: 5, y: 15, width: 5, height: 50 }],
@@ -615,6 +616,40 @@ describe('planDocument', () => {
         y: page.ruler!.y - 5,
         label: { ...page.ruler!.label, x: page.ruler!.label.x + 10, y: page.ruler!.label.y - 5 },
       });
+    });
+  });
+
+  describe('con esquinas redondeadas', () => {
+    it('cada página lleva el radio en puntos, también la de reversos', () => {
+      const { pages } = planDocument(
+        settings({
+          corners: { rounded: true, radiusMm: 3 },
+          backs: { enabled: true, flip: 'long' },
+        }),
+        [big],
+        square,
+      );
+      expect(pages).toHaveLength(2);
+      expect(pages[0].cornerRadius).toBeCloseTo(3 * (72 / 25.4), 6);
+      expect(pages[1].cornerRadius).toBeCloseTo(3 * (72 / 25.4), 6);
+    });
+
+    it('con plantilla también', () => {
+      const template = {
+        id: 't',
+        name: 'Una',
+        pageMm: { width: 210, height: 297 },
+        slots: [{ id: 'a', xMm: 10, yMm: 10, widthMm: 63, heightMm: 88, rotation: 0 as const }],
+      };
+      const { pages } = planDocument(
+        settings({ mode: 'template', template, corners: { rounded: true, radiusMm: 2 } }),
+        [big],
+      );
+      expect(pages[0].cornerRadius).toBeCloseTo(mmToPt(2), 6);
+    });
+
+    it('desactivadas, el radio es 0', () => {
+      expect(planDocument(settings(), [big]).pages[0].cornerRadius).toBe(0);
     });
   });
 });

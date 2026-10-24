@@ -1,11 +1,15 @@
 import {
   PDFDocument,
   StandardFonts,
+  appendBezierCurve,
   clip,
+  closePath,
   concatTransformationMatrix,
   degrees,
   endPath,
   fill,
+  lineTo,
+  moveTo,
   popGraphicsState,
   pushGraphicsState,
   rectangle,
@@ -17,6 +21,7 @@ import {
   type PDFPage,
   type RGB,
 } from 'pdf-lib';
+import { roundedRectPath, type PathCommand } from '../lib/corners';
 import { imageDrawRect } from '../lib/crop';
 import type { Dpi } from '../lib/dpi';
 import type { HeaderPlacement } from '../lib/header';
@@ -151,6 +156,28 @@ function drawInkSaver(page: PDFPage, rects: Rect[]) {
   }
 }
 
+function pathOperator(c: PathCommand) {
+  switch (c.op) {
+    case 'move':
+      return moveTo(c.x, c.y);
+    case 'line':
+      return lineTo(c.x, c.y);
+    case 'curve':
+      return appendBezierCurve(c.x1, c.y1, c.x2, c.y2, c.x, c.y);
+    case 'close':
+      return closePath();
+  }
+}
+
+/** Operadores que recortan lo que se dibuje después al hueco, con las esquinas redondeadas si hay radio. */
+function clipTo(rect: Rect, radius: number) {
+  const outline =
+    radius > 0
+      ? roundedRectPath(rect, radius).map(pathOperator)
+      : [rectangle(rect.x, rect.y, rect.width, rect.height)];
+  return [...outline, clip(), endPath()];
+}
+
 function hexToRgb(hex: string) {
   let h = hex.replace('#', '');
   if (h.length === 3) h = [...h].map((d) => d + d).join('');
@@ -209,32 +236,31 @@ export async function buildPdf(
 
     // En una página de reversos, cada hueco lleva la imagen del reverso con su propio recorte.
     const isBack = planned.side === 'back';
+    const radius = planned.cornerRadius;
     const drawn: Rect[] = [];
     for (const { card, placement, crop, rotation } of planned.items) {
       const source = isBack ? back! : cards[card];
       const img = await image(source);
       if (img) drawn.push(placement);
       if (img && rotation !== undefined) {
-        // Carta girada (por plantilla, por su giro o en un reverso): se recorta al hueco y se
-        // gira el sistema de coordenadas; dentro, la carta se dibuja sin girar (y con su
-        // recorte, si lo hay) de 0,0 a su tamaño.
-        const { x, y, width, height } = placement;
+        // Carta girada (por plantilla, por su giro o en un reverso): se recorta al hueco (con
+        // sus esquinas redondeadas, que son las mismas gire como gire) y se gira el sistema de
+        // coordenadas; dentro, la carta se dibuja sin girar (y con su recorte, si lo hay) de
+        // 0,0 a su tamaño.
         const local = { x: 0, y: 0, ...slotLocalSize(placement, rotation) };
         const [a, b, c, d, e, f] = slotMatrix(placement, rotation);
         page.pushOperators(
           pushGraphicsState(),
-          rectangle(x, y, width, height),
-          clip(),
-          endPath(),
+          ...clipTo(placement, radius),
           concatTransformationMatrix(a, b, c, d, e, f),
         );
         page.drawImage(img, crop ? imageDrawRect(local, crop, source) : local);
         page.pushOperators(popGraphicsState());
-      } else if (img && crop) {
-        // Se dibuja la imagen entera y una máscara del tamaño del hueco oculta lo recortado.
-        const { x, y, width, height } = placement;
-        page.pushOperators(pushGraphicsState(), rectangle(x, y, width, height), clip(), endPath());
-        page.drawImage(img, imageDrawRect(placement, crop, source));
+      } else if (img && (crop || radius > 0)) {
+        // Se dibuja la imagen entera y una máscara del tamaño del hueco (redondeada, si toca)
+        // oculta lo recortado.
+        page.pushOperators(pushGraphicsState(), ...clipTo(placement, radius));
+        page.drawImage(img, crop ? imageDrawRect(placement, crop, source) : placement);
         page.pushOperators(popGraphicsState());
       } else if (img) {
         page.drawImage(img, placement);
