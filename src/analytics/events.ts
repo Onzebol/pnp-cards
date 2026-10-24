@@ -16,6 +16,7 @@ export type AnalyticsEvent =
       bleed: boolean;
       backs: boolean;
       inkSaver: boolean;
+      roundedCorners: boolean;
       /** Cartas que saldrán con poca resolución (solo el rango, nunca cuáles). */
       lowDpi: number;
     }
@@ -76,6 +77,7 @@ export function eventPaths(event: AnalyticsEvent): string[] {
         ...(event.bleed ? [`${base}/opcion/margen-de-corte`] : []),
         ...(event.backs ? [`${base}/opcion/reversos`] : []),
         ...(event.inkSaver ? [`${base}/opcion/ahorro-de-tinta`] : []),
+        ...(event.roundedCorners ? [`${base}/opcion/esquinas-redondeadas`] : []),
         ...(event.lowDpi > 0 ? [`${base}/poca-resolucion/${cardsBucket(event.lowDpi)}`] : []),
       ];
     case 'pdf-error':

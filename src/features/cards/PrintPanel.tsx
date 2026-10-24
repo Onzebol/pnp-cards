@@ -108,6 +108,7 @@ export function PrintPanel({ generatePdf = defaultGeneratePdf }: { generatePdf?:
         bleed: settings.bleed.enabled,
         backs: settings.backs.enabled,
         inkSaver: settings.inkSaver,
+        roundedCorners: settings.corners.rounded,
         lowDpi: cards.filter((c, i) => c.blob && lowResolution(c, settings, rotations[i])).length,
       });
       setStatus({

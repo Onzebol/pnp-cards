@@ -76,6 +76,12 @@ export interface LayoutSettings {
     widthHundredthsMm: number;
   };
   bleed: { enabled: boolean; mm: number; color: string };
+  /**
+   * Esquinas redondeadas: la imagen de cada carta (y de cada reverso) se recorta con las
+   * esquinas redondeadas de este radio, como tras pasar el cortador de esquinas. Las líneas de
+   * corte no cambian.
+   */
+  corners: { rounded: boolean; radiusMm: number };
   /** Plantilla en uso en el modo «template» (una copia, para que viaje con el proyecto). */
   template: Template | null;
 }
@@ -104,6 +110,7 @@ export const DEFAULT_SETTINGS: LayoutSettings = {
   crop: { enabled: false, widthMm: 0, heightMm: 0, centered: true, x: 0, y: 0 },
   cutLines: { enabled: false, style: 'normal', color: '#000000', widthHundredthsMm: 4 },
   bleed: { enabled: false, mm: 2, color: '#ffffff' },
+  corners: { rounded: false, radiusMm: 3 },
   template: null,
 };
 
@@ -132,6 +139,7 @@ export function mergeSettings(saved: DeepPartial<LayoutSettings> | undefined): L
     crop: { ...d.crop, ...saved?.crop },
     cutLines: { ...d.cutLines, ...saved?.cutLines },
     bleed: { ...d.bleed, ...saved?.bleed },
+    corners: { ...d.corners, ...saved?.corners },
     template: saved?.template
       ? normalizeTemplate(saved.template as unknown as Record<string, unknown>, saved.template.id)
       : null,

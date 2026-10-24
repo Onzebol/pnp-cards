@@ -440,4 +440,47 @@ describe('buildPdf', () => {
       expect(extGStates(saver, 1).map((s) => s.BM)).toEqual(['/Saturation', '/Normal']);
     });
   });
+
+  describe('con esquinas redondeadas', () => {
+    const rounded = { ...DEFAULT_SETTINGS, corners: { rounded: true, radiusMm: 3 } };
+    const curves = (content: string) => content.match(/ c$/gm)?.length ?? 0;
+
+    it('recorta cada carta con un trazado de cuatro arcos antes de dibujarla', async () => {
+      const doc = await PDFDocument.load(
+        await buildPdf({ settings: rounded, cards: [card(png, 'png', 2)] }),
+      );
+      const content = pageContent(doc, 0);
+      expect(curves(content)).toBe(8);
+      expect(content).toMatch(/ c\s+h\s+W\s+n/);
+      expect(content.match(/\bDo\b/g)).toHaveLength(2);
+    });
+
+    it('sin la opción no hay ningún arco', async () => {
+      const doc = await PDFDocument.load(
+        await buildPdf({ settings: DEFAULT_SETTINGS, cards: [card(png, 'png', 2)] }),
+      );
+      expect(curves(pageContent(doc, 0))).toBe(0);
+    });
+
+    it('también redondea las cartas giradas y los reversos', async () => {
+      const back = { data: new Blob([png]), format: 'png' as const, widthPx: 30, heightPx: 30 };
+      const doc = await PDFDocument.load(
+        await buildPdf({
+          settings: { ...rounded, backs: { enabled: true, flip: 'long' } },
+          cards: [{ ...card(png, 'png', 1), rotation: 90 }],
+          back,
+        }),
+      );
+      expect(curves(pageContent(doc, 0))).toBe(4);
+      expect(curves(pageContent(doc, 1))).toBe(4);
+    });
+
+    it('la imagen sigue incrustándose tal cual', async () => {
+      const doc = await PDFDocument.load(
+        await buildPdf({ settings: rounded, cards: [card(jpg, 'jpeg', 1)] }),
+      );
+      const [stream] = imageStreams(doc);
+      expect(stream.getContents()).toEqual(jpg);
+    });
+  });
 });
