@@ -1,9 +1,17 @@
 import { useId, useMemo, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
+import {
+  bleedBandSvgMatrix,
+  bleedImageFill,
+  bleedLocalBand,
+  bleedPixel,
+  type BleedBand,
+} from '../../lib/bleed';
+import { imageDrawRect } from '../../lib/crop';
 import type { HeaderPlacement } from '../../lib/header';
 import { planDocument, PlanError, type DocumentPlan, type PlannedItem } from '../../lib/plan';
 import { RULER_LABEL, rulerCells, type RulerPlacement } from '../../lib/ruler';
-import { INK_SAVER_LIGHTEN } from '../../lib/settings';
+import { INK_SAVER_LIGHTEN, type BleedFill } from '../../lib/settings';
 import { slotLocalSize, slotSvgMatrix } from '../../lib/template';
 import {
   printableBack,
@@ -38,6 +46,41 @@ function usePlan(cards: CardImage[], back: NewImage | null): PlanResult {
 
 type PreviewImage = Pick<NewImage, 'thumbUrl' | 'widthPx' | 'heightPx'>;
 
+/** La carta (o su parte recortada) dibujada de x, y a width × height, igual que en el PDF. */
+function CardPicture({
+  card,
+  crop,
+  x = 0,
+  y = 0,
+  width,
+  height,
+}: {
+  card: PreviewImage;
+  crop: { x: number; y: number; width: number; height: number };
+  x?: number;
+  y?: number;
+  width: number;
+  height: number;
+}) {
+  return (
+    <svg
+      x={x}
+      y={y}
+      width={width}
+      height={height}
+      viewBox={`${crop.x} ${crop.y} ${crop.width} ${crop.height}`}
+      preserveAspectRatio="none"
+    >
+      <image
+        href={card.thumbUrl!}
+        width={card.widthPx}
+        height={card.heightPx}
+        preserveAspectRatio="none"
+      />
+    </svg>
+  );
+}
+
 /** Una carta (o su reverso) en la página, con la parte recortada oculta igual que en el PDF. */
 function PreviewCard({
   item,
@@ -54,28 +97,77 @@ function PreviewCard({
     return <rect x={x} y={y} width={width} height={height} className={styles.blank} />;
   }
   const crop = item.crop ?? { x: 0, y: 0, width: card.widthPx, height: card.heightPx };
-  const picture = (w: number, h: number, px = 0, py = 0) => (
-    <svg
-      x={px}
-      y={py}
-      width={w}
-      height={h}
-      viewBox={`${crop.x} ${crop.y} ${crop.width} ${crop.height}`}
-      preserveAspectRatio="none"
-    >
-      <image
-        href={card.thumbUrl!}
-        width={card.widthPx}
-        height={card.heightPx}
-        preserveAspectRatio="none"
-      />
-    </svg>
-  );
-  if (item.rotation === undefined) return picture(width, height, x, y);
+  if (item.rotation === undefined) {
+    return <CardPicture card={card} crop={crop} x={x} y={y} width={width} height={height} />;
+  }
   // Carta girada: se dibuja sin girar y la matriz la lleva a su hueco, como en el PDF.
   const local = slotLocalSize(item.placement, item.rotation);
   const matrix = slotSvgMatrix(item.placement, item.rotation, pageHeight);
-  return <g transform={`matrix(${matrix.join(' ')})`}>{picture(local.width, local.height)}</g>;
+  return (
+    <g transform={`matrix(${matrix.join(' ')})`}>
+      <CardPicture card={card} crop={crop} width={local.width} height={local.height} />
+    </g>
+  );
+}
+
+/**
+ * Una banda del margen de corte: color plano, o la carta de nuevo, recortada a la banda y con la
+ * matriz que hace que su borde la rellene (en espejo o estirado), igual que en el PDF.
+ */
+function PreviewBand({
+  band,
+  item,
+  card,
+  fill,
+  color,
+  pageHeight,
+  id,
+}: {
+  band: BleedBand;
+  item?: PlannedItem;
+  card?: PreviewImage;
+  fill: BleedFill;
+  color: string;
+  pageHeight: number;
+  id: string;
+}) {
+  const { rect } = band;
+  const svgRect = { ...rect, y: pageHeight - rect.y - rect.height };
+  if (band.card === null || !item || !card?.thumbUrl) {
+    return <rect {...svgRect} fill={color} />;
+  }
+  const rotation = item.rotation ?? 0;
+  const local = { x: 0, y: 0, ...slotLocalSize(item.placement, rotation) };
+  const px = bleedPixel(local, item.crop, card);
+  const matrix = bleedBandSvgMatrix(
+    bleedLocalBand(band, rotation),
+    local,
+    bleedImageFill(fill),
+    px,
+  );
+  const drawRect = item.crop ? imageDrawRect(local, item.crop, card) : local;
+  const crop = item.crop ?? { x: 0, y: 0, width: card.widthPx, height: card.heightPx };
+  return (
+    <g clipPath={`url(#${id})`}>
+      <defs>
+        <clipPath id={id}>
+          <rect {...svgRect} />
+        </clipPath>
+      </defs>
+      <g transform={`matrix(${slotSvgMatrix(item.placement, rotation, pageHeight).join(' ')})`}>
+        <g transform={`matrix(${matrix.join(' ')})`}>
+          <CardPicture
+            card={card}
+            crop={crop}
+            x={drawRect.x}
+            y={local.height - drawRect.y - drawRect.height}
+            width={drawRect.width}
+            height={drawRect.height}
+          />
+        </g>
+      </g>
+    </g>
+  );
 }
 
 /**
@@ -161,6 +253,7 @@ export function PagePreview() {
   const back = printableBack(useCardsStore((s) => s.back));
   const result = usePlan(cards, back);
   const bleedColor = useSettingsStore((s) => s.settings.bleed.color);
+  const bleedFill = useSettingsStore((s) => s.settings.bleed.fill);
   const lineColor = useSettingsStore((s) => s.settings.cutLines.color);
   const [requested, setRequested] = useState(0);
 
@@ -198,16 +291,26 @@ export function PagePreview() {
           style={{ '--ratio': W / H } as CSSProperties}
         >
           <rect width={W} height={H} className={styles.paper} />
-          {page.bleed.map((r, i) => (
-            <rect
-              key={i}
-              x={r.x}
-              y={H - r.y - r.height}
-              width={r.width}
-              height={r.height}
-              fill={bleedColor}
-            />
-          ))}
+          <g data-testid="bleed">
+            {page.bleed.map((band, i) => (
+              <PreviewBand
+                key={i}
+                band={band}
+                item={band.card === null ? undefined : page.items[band.card]}
+                card={
+                  band.card === null
+                    ? undefined
+                    : isBack
+                      ? back!
+                      : cards[page.items[band.card].card]
+                }
+                fill={bleedFill}
+                color={bleedColor}
+                pageHeight={H}
+                id={`${filterId}-banda-${i}`}
+              />
+            ))}
+          </g>
           {inkSaver ? <InkSaverFilter id={filterId} /> : null}
           <g filter={inkSaver ? `url(#${filterId})` : undefined} data-testid="cards">
             {page.items.map((item, i) => (

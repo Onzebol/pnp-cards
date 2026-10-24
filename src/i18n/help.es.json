@@ -298,6 +298,10 @@
           "text": "Es una banda del ancho que indiques (2 mm por defecto) alrededor de cada carta, debajo de la imagen. También se le llama sangrado. Si tus cartas tienen un fondo de color, pon el margen de ese color: si el corte se desvía un poco, no quedará un filo blanco."
         },
         {
+          "type": "p",
+          "text": "El relleno decide qué se ve en la banda: «Color plano» pone el color elegido; «Estirar el borde» repite hacia fuera la última fila y columna de la carta, y «Copiar en espejo» copia el borde de la carta reflejado, como un espejo apoyado en él. Las esquinas se rellenan con su esquina de la carta. Con las cartas en blanco, el margen sigue siendo de color plano."
+        },
+        {
           "type": "note",
           "text": "El margen de corte no es el margen de la página, que es la distancia entre las cartas y el borde del papel.",
           "link": {

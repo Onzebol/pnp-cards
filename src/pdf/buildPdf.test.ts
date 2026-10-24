@@ -440,4 +440,91 @@ describe('buildPdf', () => {
       expect(extGStates(saver, 1).map((s) => s.BM)).toEqual(['/Saturation', '/Normal']);
     });
   });
+
+  describe('con relleno de imagen en el margen de corte', () => {
+    const withFill = (fill: 'stretch' | 'mirror') => ({
+      ...DEFAULT_SETTINGS,
+      bleed: { ...DEFAULT_SETTINGS.bleed, enabled: true, fill },
+    });
+    const template = {
+      id: 't',
+      name: 'x',
+      pageMm: { width: 100, height: 100 },
+      slots: [{ id: 'a', xMm: 10, yMm: 10, widthMm: 40, heightMm: 30, rotation: 90 as const }],
+    };
+
+    it('con color plano, cada banda es un rectángulo y la imagen se dibuja una vez', async () => {
+      const doc = await PDFDocument.load(
+        await buildPdf({
+          settings: { ...DEFAULT_SETTINGS, bleed: { ...DEFAULT_SETTINGS.bleed, enabled: true } },
+          cards: [card(jpg, 'jpeg', 1)],
+        }),
+      );
+      expect(pageContent(doc, 0).match(/\bDo\b/g)).toHaveLength(1);
+    });
+
+    it('mirror: vuelve a dibujar la misma imagen en cada banda, recortada', async () => {
+      const settings = { ...withFill('mirror'), mode: 'template' as const, template };
+      const doc = await PDFDocument.load(
+        await buildPdf({ settings, cards: [card(jpg, 'jpeg', 1)] }),
+      );
+      const content = pageContent(doc, 0);
+      // Ocho bandas recortadas (re + W n) y nueve dibujados de imagen: la carta y las bandas.
+      expect(content.match(/re\s+W\s+n/g)).toHaveLength(9);
+      expect(content.match(/\bDo\b/g)).toHaveLength(9);
+      // La imagen sigue incrustada una sola vez.
+      expect(imageStreams(doc)).toHaveLength(1);
+      // La banda izquierda refleja la imagen sobre su borde izquierdo: -1 0 0 1 0 0 cm.
+      expect(content).toMatch(/-1 0 0 1 0 0 cm/);
+      // Y la superior sobre el borde superior del hueco girado (40 mm de alto sin girar):
+      // 1 0 0 -1 0 226,77 cm.
+      expect(content).toMatch(/1 0 0 -1 0 226\.77\d* cm/);
+    });
+
+    it('stretch: estira la última columna de la zona visible, no de la imagen entera', async () => {
+      const settings = {
+        ...withFill('stretch'),
+        mode: 'template' as const,
+        crop: { enabled: true, widthMm: 2, heightMm: 3, centered: true, x: 0, y: 0 },
+        template: {
+          id: 't',
+          name: 'x',
+          pageMm: { width: 100, height: 100 },
+          slots: [{ id: 'a', xMm: 10, yMm: 10, widthMm: 40, heightMm: 30, rotation: 0 as const }],
+        },
+      };
+      const doc = await PDFDocument.load(
+        await buildPdf({ settings, cards: [card(jpg, 'jpeg', 1)] }),
+      );
+      // El recorte es de 24 px de ancho en una imagen de 30: el hueco (113,386 pt) entre 24 px
+      // da 4,724 pt por píxel, y la banda de 5,669 pt se llena con factor 5,669 / 4,724 = 1,2.
+      // Con el borde de la imagen entera sería 113,386 / 30 → 1,5.
+      expect(pageContent(doc, 0)).toMatch(/-1\.2 0 0 1 0 0 cm/);
+      // Y la matriz del hueco (10 mm, 60 mm desde abajo) coloca la banda en su sitio.
+      expect(pageContent(doc, 0)).toMatch(/1 0 0 1 28\.346\d* 170\.07\d* cm/);
+    });
+
+    it('stretch con el hueco girado: la banda estira la última fila de la imagen, no el alto del hueco', async () => {
+      const settings = {
+        ...withFill('stretch'),
+        mode: 'template' as const,
+        crop: { enabled: true, widthMm: 2, heightMm: 3, centered: true, x: 0, y: 0 },
+        template: {
+          id: 't',
+          name: 'x',
+          pageMm: { width: 100, height: 100 },
+          slots: [{ id: 'a', xMm: 10, yMm: 10, widthMm: 40, heightMm: 30, rotation: 90 as const }],
+        },
+      };
+      const doc = await PDFDocument.load(
+        await buildPdf({ settings, cards: [card(jpg, 'jpeg', 1)] }),
+      );
+      // El borde izquierdo de la página es el superior de la imagen sin girar (30 × 40 mm).
+      // Un píxel mide 113,386 / 35 = 3,2396 pt de alto y la banda 5,669: factor 1,75. Con el
+      // alto del hueco en la página (85,039) el factor sería 26,25.
+      expect(pageContent(doc, 0)).toMatch(/1 0 0 -1\.75 0 311\.81\d* cm/);
+      // La matriz del hueco girado (0 1 -1 0 x+w y) coloca la banda en su sitio.
+      expect(pageContent(doc, 0)).toMatch(/0 1 -1 0 141\.73\d* 170\.07\d* cm/);
+    });
+  });
 });

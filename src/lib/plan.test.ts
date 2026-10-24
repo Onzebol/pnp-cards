@@ -79,11 +79,66 @@ describe('planDocument', () => {
   });
 
   it('calcula el margen de corte de cada página con sus cartas', () => {
-    const plan = planDocument(settings({ bleed: { enabled: true, mm: 2, color: '#fff' } }), [
-      { ...big, copies: 10 },
-    ]);
+    const plan = planDocument(
+      settings({ bleed: { enabled: true, mm: 2, color: '#fff', fill: 'color' } }),
+      [{ ...big, copies: 10 }],
+    );
     expect(plan.pages[0].bleed).toHaveLength(36);
     expect(plan.pages[1].bleed).toHaveLength(4);
+  });
+
+  describe('con relleno de imagen en el margen de corte', () => {
+    const s = settings({ bleed: { enabled: true, mm: 2, color: '#fff', fill: 'mirror' } });
+
+    it('cada banda lleva su carta y su lado, con las esquinas aparte', () => {
+      const page = planDocument(s, [big]).pages[0];
+      expect(page.bleed).toHaveLength(8);
+      expect(page.bleed[0]).toMatchObject({ card: 0, side: 'left' });
+      expect(page.bleed[4]).toMatchObject({ card: 0, side: 'bottom-left' });
+      expect(page.bleed[7]).toMatchObject({ card: 0, side: 'top-right' });
+    });
+
+    it('con color plano, las bandas no llevan carta', () => {
+      const page = planDocument(settings({ bleed: { ...DEFAULT_SETTINGS.bleed, enabled: true } }), [
+        big,
+      ]).pages[0];
+      expect(page.bleed.every((b) => b.card === null)).toBe(true);
+    });
+
+    it('las cartas en blanco llevan color plano, con sus cuatro bandas de siempre', () => {
+      const page = planDocument(s, [big, blank]).pages[0];
+      expect(page.bleed.filter((b) => b.card === 1)).toHaveLength(0);
+      expect(page.bleed.filter((b) => b.card === null)).toHaveLength(4);
+      expect(page.bleed).toHaveLength(12);
+    });
+
+    it('en los reversos, las bandas apuntan al reverso de su hueco', () => {
+      const back = planDocument(
+        settings({ ...s, backs: { enabled: true, flip: 'long' } }),
+        [{ ...big, copies: 2 }],
+        { widthPx: 1000, heightPx: 1000 },
+      ).pages[1];
+      expect(back.bleed[0]).toMatchObject({ card: 0, side: 'left' });
+      expect(back.bleed).toHaveLength(16);
+    });
+
+    it('con plantilla, las cartas en blanco llevan color plano', () => {
+      const page = planDocument(
+        settings({
+          ...s,
+          mode: 'template',
+          template: {
+            id: 't',
+            name: 'x',
+            pageMm: { width: 100, height: 100 },
+            slots: [{ id: 'a', xMm: 10, yMm: 10, widthMm: 40, heightMm: 30, rotation: 0 as const }],
+          },
+        }),
+        [blank],
+      ).pages[0];
+      expect(page.bleed.every((b) => b.card === null)).toBe(true);
+      expect(page.bleed).toHaveLength(4);
+    });
   });
 
   it('traza las líneas de corte con la primera carta de cada página', () => {
@@ -162,7 +217,7 @@ describe('planDocument', () => {
     it('lleva margen de corte pero no líneas de corte', () => {
       const s = settings({
         backs: { enabled: true, flip: 'long' },
-        bleed: { enabled: true, mm: 2, color: '#fff' },
+        bleed: { enabled: true, mm: 2, color: '#fff', fill: 'color' },
         cutLines: { enabled: true, style: 'normal', color: '#000', widthHundredthsMm: 4 },
       });
       const back = planDocument(s, [{ ...big, copies: 2 }], square).pages[1];
@@ -204,12 +259,15 @@ describe('planDocument', () => {
       });
 
       it('mueve el margen de corte exactamente lo mismo que los reversos', () => {
-        const s = { ...moved, bleed: { enabled: true, mm: 2, color: '#fff' } };
+        const s = settings({
+          ...moved,
+          bleed: { enabled: true, mm: 2, color: '#fff', fill: 'color' },
+        });
         const back = planDocument(s, [big], square).pages[1];
         const { x, y } = back.items[0].placement;
         // La banda izquierda empieza 2 mm (5,669 pt) a la izquierda del reverso desplazado.
-        expect(back.bleed[0].x).toBeCloseTo(x - 5.669, 3);
-        expect(back.bleed[0].y).toBeCloseTo(y - 5.669, 3);
+        expect(back.bleed[0].rect.x).toBeCloseTo(x - 5.669, 3);
+        expect(back.bleed[0].rect.y).toBeCloseTo(y - 5.669, 3);
       });
 
       it('se aplica igual por el borde corto y conserva el giro', () => {
@@ -237,14 +295,14 @@ describe('planDocument', () => {
       ruler: null,
       size: { width: 595, height: 842 },
       items: [{ card: 0, placement: { x: 10, y: 20, width: 30, height: 40 }, crop: null }],
-      bleed: [{ x: 5, y: 15, width: 5, height: 50 }],
+      bleed: [{ rect: { x: 5, y: 15, width: 5, height: 50 }, card: null, side: 'left' }],
       cutLines: { lineWidth: 0.1, segments: [{ x1: 0, y1: 20, x2: 10, y2: 20 }] },
     };
 
     it('mueve cartas, margen y líneas de corte lo mismo', () => {
       const moved = translatePage(page, 4, -1);
       expect(moved.items[0].placement).toEqual({ x: 14, y: 19, width: 30, height: 40 });
-      expect(moved.bleed[0]).toEqual({ x: 9, y: 14, width: 5, height: 50 });
+      expect(moved.bleed[0].rect).toEqual({ x: 9, y: 14, width: 5, height: 50 });
       expect(moved.cutLines!.segments[0]).toEqual({ x1: 4, y1: 19, x2: 14, y2: 19 });
       expect(moved.cutLines!.lineWidth).toBe(0.1);
     });
@@ -393,7 +451,7 @@ describe('planDocument', () => {
       const s = settings({
         mode: 'template',
         template,
-        bleed: { enabled: true, mm: 2, color: '#fff' },
+        bleed: { enabled: true, mm: 2, color: '#fff', fill: 'color' },
         cutLines: { enabled: true, style: 'normal', color: '#000', widthHundredthsMm: 4 },
       });
       const page = planDocument(s, [big]).pages[0];

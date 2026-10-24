@@ -67,7 +67,7 @@ export function slotMatrix(box: Placement, rotation: Rotation): number[] {
 }
 
 /** Producto de matrices afines [a b c d e f]: primero n y luego m. */
-function multiply(m: number[], n: number[]): number[] {
+export function multiplyMatrix(m: number[], n: number[]): number[] {
   const [a, b, c, d, e, f] = m;
   const [a2, b2, c2, d2, e2, f2] = n;
   return [
@@ -88,7 +88,7 @@ export function slotSvgMatrix(box: Placement, rotation: Rotation, pageHeightPt: 
   const local = slotLocalSize(box, rotation);
   const flipLocal = [1, 0, 0, -1, 0, local.height];
   const flipPage = [1, 0, 0, -1, 0, pageHeightPt];
-  return multiply(flipPage, multiply(slotMatrix(box, rotation), flipLocal));
+  return multiplyMatrix(flipPage, multiplyMatrix(slotMatrix(box, rotation), flipLocal));
 }
 
 /** Marcas de corte de un hueco: dos por esquina, por fuera, separadas `gap` y de largo `length`. */

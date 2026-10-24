@@ -11,7 +11,7 @@ import {
   type CardSizeChoice,
 } from '../../lib/cardPresets';
 import { cardSizeSummary } from '../../lib/cardInfo';
-import type { CutLineStyle, LayoutMode, PaperSize, Placement } from '../../lib/settings';
+import type { BleedFill, CutLineStyle, LayoutMode, PaperSize, Placement } from '../../lib/settings';
 import { printableCards, useCardsStore } from '../../store/cardsStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import { useTemplatesStore } from '../templates/templatesStore';
@@ -401,6 +401,16 @@ export function SettingsPanel() {
               min={0}
               unit={mm}
               onChange={(bleedMm) => update({ bleed: { ...s.bleed, mm: bleedMm } })}
+            />
+            <RadioGroup<BleedFill>
+              legend={t('settings.bleedFill')}
+              value={s.bleed.fill}
+              onChange={(fill) => update({ bleed: { ...s.bleed, fill } })}
+              options={[
+                { value: 'color', label: t('settings.bleedFillColor') },
+                { value: 'stretch', label: t('settings.bleedFillStretch') },
+                { value: 'mirror', label: t('settings.bleedFillMirror') },
+              ]}
             />
             <ColorField
               label={t('settings.color')}

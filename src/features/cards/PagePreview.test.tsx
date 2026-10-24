@@ -110,6 +110,31 @@ describe('PagePreview', () => {
     expect(container.querySelectorAll('line')).toHaveLength(12);
   });
 
+  it('con relleno de imagen, el margen de corte repite la carta en cada banda', () => {
+    useSettingsStore.getState().update({
+      bleed: { ...DEFAULT_SETTINGS.bleed, enabled: true, fill: 'mirror' },
+    });
+    useCardsStore.getState().addImages([image('a.png')]);
+    const { container } = render(<PagePreview />);
+    // La carta más sus ocho bandas, cada una recortada a su rectángulo.
+    expect(images(container)).toHaveLength(9);
+    expect(container.querySelectorAll('clipPath')).toHaveLength(8);
+    // La primera banda (la izquierda) refleja sobre el borde: -1 0 0 1 0 0.
+    const banda =
+      container.querySelector('clipPath')!.parentElement!.parentElement!.lastElementChild!
+        .lastElementChild!;
+    expect(banda.getAttribute('transform')).toBe('matrix(-1 0 0 1 0 0)');
+  });
+
+  it('con color plano, el margen de corte son cuatro rectángulos sin recortes', () => {
+    useSettingsStore.getState().update({ bleed: { ...DEFAULT_SETTINGS.bleed, enabled: true } });
+    useCardsStore.getState().addImages([image('a.png')]);
+    const { container } = render(<PagePreview />);
+    expect(images(container)).toHaveLength(1);
+    expect(container.querySelector('clipPath')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="bleed"] rect')).toHaveLength(4);
+  });
+
   it('explica el problema si solo hay imágenes en blanco', () => {
     useCardsStore.getState().addBlank();
     render(<PagePreview />);

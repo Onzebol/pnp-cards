@@ -17,6 +17,7 @@ import {
   type PDFPage,
   type RGB,
 } from 'pdf-lib';
+import { bleedBandMatrix, bleedImageFill, bleedLocalBand, bleedPixel } from '../lib/bleed';
 import { imageDrawRect } from '../lib/crop';
 import type { Dpi } from '../lib/dpi';
 import type { HeaderPlacement } from '../lib/header';
@@ -201,14 +202,45 @@ export async function buildPdf(
 
   for (const planned of plan.pages) {
     const page: PDFPage = doc.addPage([planned.size.width, planned.size.height]);
+    // En una página de reversos, cada hueco lleva la imagen del reverso con su propio recorte.
+    const isBack = planned.side === 'back';
 
-    // El margen de corte va debajo de las cartas.
-    for (const r of planned.bleed) {
-      page.drawRectangle({ ...r, color: bleedColor });
+    // El margen de corte va debajo de las cartas: color plano, o la propia carta copiada en
+    // cada banda (recortada a la banda y transformada para que su borde la rellene).
+    const fill = bleedImageFill(settings.bleed.fill);
+    for (const band of planned.bleed) {
+      const item = band.card === null ? null : planned.items[band.card];
+      if (!item) {
+        page.drawRectangle({ ...band.rect, color: bleedColor });
+        continue;
+      }
+      const source = isBack ? back! : cards[item.card];
+      const img = await image(source);
+      if (!img) {
+        page.drawRectangle({ ...band.rect, color: bleedColor });
+        continue;
+      }
+      // La banda se rellena en el marco de la imagen (el hueco local si está girada): la misma
+      // matriz de la carta lleva ese marco al hueco, y dentro va la de la banda.
+      const rotation = item.rotation ?? 0;
+      const local = { x: 0, y: 0, ...slotLocalSize(item.placement, rotation) };
+      const px = bleedPixel(local, item.crop, source);
+      const [a, b, c, d, e, f] = bleedBandMatrix(bleedLocalBand(band, rotation), local, fill, px);
+      const drawRect = item.crop ? imageDrawRect(local, item.crop, source) : local;
+      const slot = slotMatrix(item.placement, rotation);
+      page.pushOperators(
+        pushGraphicsState(),
+        rectangle(band.rect.x, band.rect.y, band.rect.width, band.rect.height),
+        clip(),
+        endPath(),
+        concatTransformationMatrix(slot[0], slot[1], slot[2], slot[3], slot[4], slot[5]),
+        concatTransformationMatrix(a, b, c, d, e, f),
+      );
+      page.drawImage(img, drawRect);
+      page.pushOperators(popGraphicsState());
     }
 
     // En una página de reversos, cada hueco lleva la imagen del reverso con su propio recorte.
-    const isBack = planned.side === 'back';
     const drawn: Rect[] = [];
     for (const { card, placement, crop, rotation } of planned.items) {
       const source = isBack ? back! : cards[card];

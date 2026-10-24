@@ -6,6 +6,8 @@ export type Placement = 'separated' | 'together';
 export type CutLineStyle = 'normal' | 'full' | 'cross';
 /** Por dónde se da la vuelta al papel al imprimir a doble cara. */
 export type BackFlip = 'long' | 'short';
+/** Cómo se rellena el margen de corte: color plano o a partir de la propia carta. */
+export type BleedFill = 'color' | 'stretch' | 'mirror';
 
 export interface CropSettings {
   enabled: boolean;
@@ -75,7 +77,14 @@ export interface LayoutSettings {
     /** Grosor en centésimas de mm. */
     widthHundredthsMm: number;
   };
-  bleed: { enabled: boolean; mm: number; color: string };
+  bleed: {
+    enabled: boolean;
+    mm: number;
+    /** Color plano de las bandas: el modo «color» y las cartas en blanco. */
+    color: string;
+    /** Relleno: color plano, repetir el borde de la carta o copiarlo en espejo. */
+    fill: BleedFill;
+  };
   /** Plantilla en uso en el modo «template» (una copia, para que viaje con el proyecto). */
   template: Template | null;
 }
@@ -103,7 +112,7 @@ export const DEFAULT_SETTINGS: LayoutSettings = {
   autoRotate: false,
   crop: { enabled: false, widthMm: 0, heightMm: 0, centered: true, x: 0, y: 0 },
   cutLines: { enabled: false, style: 'normal', color: '#000000', widthHundredthsMm: 4 },
-  bleed: { enabled: false, mm: 2, color: '#ffffff' },
+  bleed: { enabled: false, mm: 2, color: '#ffffff', fill: 'color' },
   template: null,
 };
 

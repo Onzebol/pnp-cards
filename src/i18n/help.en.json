@@ -224,6 +224,10 @@
           "text": "A band of the width you set (2 mm by default) around each card, underneath the image. If your cards have a coloured background, give the bleed that colour: if the cut strays a little, there won’t be a white edge."
         },
         {
+          "type": "p",
+          "text": "The fill decides what shows in the band: “Solid colour” uses the chosen colour; “Stretch the edge” repeats the card’s last row and column outwards, and “Mirror the edge” copies the card’s edge reflected, like a mirror held against it. Corners are filled with their own corner of the card. Blank cards keep the solid colour."
+        },
+        {
           "type": "note",
           "text": "The bleed is not the page margin, which is the distance between the cards and the edge of the paper.",
           "link": { "topic": "layout", "label": "Layout and page" }
