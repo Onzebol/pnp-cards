@@ -1,4 +1,4 @@
-import { useId, useMemo, useState, type CSSProperties } from 'react';
+import { useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   bleedBandSvgMatrix,
@@ -81,31 +81,66 @@ function CardPicture({
   );
 }
 
-/** Una carta (o su reverso) en la página, con la parte recortada oculta igual que en el PDF. */
+type Box = { x: number; y: number; width: number; height: number };
+
+/**
+ * Una carta (o su reverso) en la página, con la parte recortada oculta igual que en el PDF y,
+ * si hay radio, las esquinas redondeadas.
+ */
 function PreviewCard({
   item,
   card,
   pageHeight,
+  radius,
 }: {
   item: PlannedItem;
   card: PreviewImage;
   pageHeight: number;
+  radius: number;
 }) {
+  const clipId = useId();
   const { x, width, height } = item.placement;
   const y = pageHeight - item.placement.y - height;
+  // Radio limitado a la mitad del lado menor, como en el PDF.
+  const rx = (box: Box) => Math.min(radius, box.width / 2, box.height / 2);
   if (!card.thumbUrl) {
-    return <rect x={x} y={y} width={width} height={height} className={styles.blank} />;
+    const box = { x, y, width, height };
+    return <rect {...box} rx={radius > 0 ? rx(box) : undefined} className={styles.blank} />;
   }
+  // Recorte con las esquinas redondeadas, en las coordenadas en que se dibuja la carta.
+  const rounded = (content: ReactNode, box: Box) =>
+    radius > 0 ? (
+      <>
+        <clipPath id={clipId}>
+          <rect {...box} rx={rx(box)} />
+        </clipPath>
+        <g clipPath={`url(#${clipId})`}>{content}</g>
+      </>
+    ) : (
+      content
+    );
   const crop = item.crop ?? { x: 0, y: 0, width: card.widthPx, height: card.heightPx };
   if (item.rotation === undefined) {
-    return <CardPicture card={card} crop={crop} x={x} y={y} width={width} height={height} />;
+    return rounded(
+      <CardPicture card={card} crop={crop} x={x} y={y} width={width} height={height} />,
+      {
+        x,
+        y,
+        width,
+        height,
+      },
+    );
   }
   // Carta girada: se dibuja sin girar y la matriz la lleva a su hueco, como en el PDF.
   const local = slotLocalSize(item.placement, item.rotation);
   const matrix = slotSvgMatrix(item.placement, item.rotation, pageHeight);
   return (
     <g transform={`matrix(${matrix.join(' ')})`}>
-      <CardPicture card={card} crop={crop} width={local.width} height={local.height} />
+      {rounded(<CardPicture card={card} crop={crop} width={local.width} height={local.height} />, {
+        x: 0,
+        y: 0,
+        ...local,
+      })}
     </g>
   );
 }
@@ -319,6 +354,7 @@ export function PagePreview() {
                 item={item}
                 card={isBack ? back! : cards[item.card]}
                 pageHeight={H}
+                radius={page.cornerRadius}
               />
             ))}
           </g>

@@ -39,6 +39,7 @@ describe('eventPaths', () => {
         bleed: true,
         backs: true,
         inkSaver: true,
+        roundedCorners: true,
         lowDpi: 0,
       }),
     ).toEqual([
@@ -50,6 +51,7 @@ describe('eventPaths', () => {
       'pdf-generado/opcion/margen-de-corte',
       'pdf-generado/opcion/reversos',
       'pdf-generado/opcion/ahorro-de-tinta',
+      'pdf-generado/opcion/esquinas-redondeadas',
     ]);
   });
 
@@ -64,6 +66,7 @@ describe('eventPaths', () => {
       bleed: false,
       backs: false,
       inkSaver: false,
+      roundedCorners: false,
     };
     expect(eventPaths({ ...event, lowDpi: 2 })).toContain('pdf-generado/poca-resolucion/1-9');
     expect(eventPaths({ ...event, lowDpi: 0 }).join()).not.toContain('poca-resolucion');

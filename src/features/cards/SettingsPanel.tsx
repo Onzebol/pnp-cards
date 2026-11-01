@@ -389,6 +389,23 @@ export function SettingsPanel() {
           </FieldRow>
         ) : null}
         <Checkbox
+          label={t('settings.roundedCorners')}
+          hint={t('settings.roundedCornersHint')}
+          checked={s.corners.rounded}
+          onChange={(rounded) => update({ corners: { ...s.corners, rounded } })}
+        />
+        {s.corners.rounded ? (
+          <FieldRow>
+            <NumberField
+              label={t('settings.cornerRadius')}
+              value={s.corners.radiusMm}
+              min={0}
+              unit={mm}
+              onChange={(radiusMm) => update({ corners: { ...s.corners, radiusMm } })}
+            />
+          </FieldRow>
+        ) : null}
+        <Checkbox
           label={t('settings.bleed')}
           checked={s.bleed.enabled}
           onChange={(enabled) => update({ bleed: { ...s.bleed, enabled } })}

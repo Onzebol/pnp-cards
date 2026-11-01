@@ -291,6 +291,18 @@
         },
         {
           "type": "h",
+          "text": "Esquinas redondeadas"
+        },
+        {
+          "type": "p",
+          "text": "Con «Esquinas redondeadas», cada carta (y su reverso) se recorta con las esquinas redondeadas del radio que indiques; 3 mm es el habitual en las cartas de póker. Sirve para ver en la vista previa cómo quedarán tras pasar el cortador de esquinas, o para imprimir sin margen de corte con las esquinas ya redondeadas y recortarlas siguiendo el contorno."
+        },
+        {
+          "type": "p",
+          "text": "Las líneas de corte no cambian: siguen marcando el rectángulo de la carta. Con el margen de corte activado, su color asoma en las esquinas, por debajo del redondeo. La imagen no se vuelve a codificar: solo se recorta al dibujarla."
+        },
+        {
+          "type": "h",
           "text": "Margen de corte"
         },
         {
