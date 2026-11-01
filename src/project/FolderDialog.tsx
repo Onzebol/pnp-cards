@@ -4,6 +4,7 @@ import styles from '../components/Dialog.module.css';
 import { useModalDialog } from '../components/useModalDialog';
 import { looseFiles } from '../features/cards/loadImages';
 import { IMAGE_ACCEPT } from '../lib/imageFormat';
+import { projectImageCount } from '../lib/project';
 import type { useProjectActions } from './useProjectActions';
 
 type Actions = ReturnType<typeof useProjectActions>;
@@ -15,9 +16,7 @@ export function FolderDialog({ actions }: { actions: Actions }) {
   const ref = useModalDialog(pending !== null);
   const titleId = useId();
   const filesRef = useRef<HTMLInputElement>(null);
-  // Las imágenes de las cartas y la del reverso común.
-  const count =
-    (pending?.project.cards.filter((c) => c.name).length ?? 0) + (pending?.project.back ? 1 : 0);
+  const count = pending ? projectImageCount(pending.project) : 0;
   const name = pending?.project.name ?? '';
   const known = pending?.knownFolder;
 

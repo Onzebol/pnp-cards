@@ -214,6 +214,40 @@ describe('planDocument', () => {
       expect(plan.pages[1].items[1].placement.x).toBeCloseTo(393.763, 3);
     });
 
+    describe('con reverso propio', () => {
+      /** Reverso alto y estrecho (1 : 4), para distinguir su recorte del del cuadrado común. */
+      const tall = { widthPx: 500, heightPx: 2000 };
+
+      it('la carta con reverso propio lo lleva en su hueco, recortado a su forma', () => {
+        const back = planDocument(long, [big, { ...big, ownBack: tall }], square).pages[1];
+        expect(back.items.map((i) => i.card)).toEqual([0, 1]);
+        // La primera usa el común: 716 × 1000 del cuadrado.
+        expect(back.items[0].ownBack).toBeUndefined();
+        expect(back.items[0].crop).toEqual({ x: 142, y: 0, width: 716, height: 1000 });
+        // La segunda, el suyo: 500 / 0,716 = 698,25 → 500 × 698, centrado: (2000 − 698) / 2 = 651.
+        expect(back.items[1].ownBack).toBe(true);
+        expect(back.items[1].crop).toEqual({ x: 0, y: 651, width: 500, height: 698 });
+      });
+
+      it('sin reverso común, las cartas sin reverso propio dejan su hueco vacío', () => {
+        const plan = planDocument(long, [big, { ...big, ownBack: tall }, small], null);
+        expect(plan.pages.map((p) => p.side)).toEqual(['front', 'back']);
+        expect(plan.pages[1].items.map((i) => i.card)).toEqual([1]);
+      });
+
+      it('la marcada sin reverso no lo lleva aunque tenga uno propio', () => {
+        const back = planDocument(long, [big, { ...big, ownBack: tall, noBack: true }], square)
+          .pages[1];
+        expect(back.items.map((i) => i.card)).toEqual([0]);
+      });
+
+      it('sin reverso común ni propio en ninguna carta no se puede generar', () => {
+        expect(() =>
+          planDocument(long, [big, { ...big, ownBack: tall, noBack: true }], null),
+        ).toThrow(expect.objectContaining({ code: 'no-back' }));
+      });
+    });
+
     it('lleva margen de corte pero no líneas de corte', () => {
       const s = settings({
         backs: { enabled: true, flip: 'long' },

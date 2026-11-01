@@ -1,0 +1,80 @@
+/* Tira de reversos propios, encima de la lista de cartas. */
+.strip {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+}
+
+.title {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-label);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+}
+
+.item[data-missing] {
+  border-color: var(--danger);
+}
+
+.thumb {
+  flex: none;
+  height: 3.25rem;
+  width: auto;
+  border-radius: 3px;
+}
+
+span.thumb {
+  width: 2.3rem;
+  border: 1.5px dashed var(--danger);
+}
+
+.text {
+  display: grid;
+  min-width: 0;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.name {
+  max-width: 14rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.uses {
+  color: var(--text-muted);
+}
+
+.find {
+  justify-self: start;
+  color: var(--danger);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.find:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}

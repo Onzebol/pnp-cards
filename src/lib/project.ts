@@ -1,4 +1,4 @@
-import type { ImageRef } from './imageMatch';
+import { normalizePath, type ImageRef } from './imageMatch';
 import { mergeSettings, type LayoutSettings } from './settings';
 import { ROTATIONS, type Rotation } from './template';
 
@@ -9,9 +9,10 @@ export const PROJECT_MIME = 'application/x-pnpcards';
 const FORMAT = 'pnp-cards';
 /**
  * 2: reverso común (`back`) y cartas sin reverso (`noBack`). 3: giro por carta (`rotation`) y
- * la casilla de girar las cartas horizontales (`settings.autoRotate`).
+ * la casilla de girar las cartas horizontales (`settings.autoRotate`). 4: reverso propio por carta
+ * (`back` en cada carta).
  */
-const VERSION = 3;
+const VERSION = 4;
 
 /** Carta del proyecto: ruta dentro de la carpeta de imágenes (y nombre); '' = en blanco. */
 export interface ProjectCardRef {
@@ -22,6 +23,8 @@ export interface ProjectCardRef {
   noBack?: true;
   /** Solo si tiene giro propio (antihorario). */
   rotation?: Exclude<Rotation, 0>;
+  /** Solo si tiene reverso propio: su imagen, en la misma carpeta que las cartas. */
+  back?: ImageRef;
 }
 
 export interface ProjectFile {
@@ -32,6 +35,27 @@ export interface ProjectFile {
   cards: ProjectCardRef[];
   /** Imagen del reverso común, en la misma carpeta que las cartas. */
   back: ImageRef | null;
+}
+
+/** Clave para saber si dos referencias son la misma imagen. */
+export const imageKey = (ref: ImageRef) => normalizePath(ref.path || ref.name);
+
+/** Las imágenes de los reversos propios del proyecto, cada una una vez y en orden de aparición. */
+export function ownBackRefs(project: Pick<ProjectFile, 'cards'>): ImageRef[] {
+  const seen = new Map<string, ImageRef>();
+  for (const { back } of project.cards) {
+    if (back && !seen.has(imageKey(back))) seen.set(imageKey(back), back);
+  }
+  return [...seen.values()];
+}
+
+/** Cuántas imágenes hay que buscar en la carpeta: cartas, reverso común y reversos propios. */
+export function projectImageCount(project: ProjectFile): number {
+  return (
+    project.cards.filter((c) => c.name).length +
+    (project.back ? 1 : 0) +
+    ownBackRefs(project).length
+  );
 }
 
 export type ProjectErrorCode = 'invalid' | 'newer-version';
@@ -52,12 +76,13 @@ export function serializeProject(project: ProjectFile): string {
       name: project.name,
       folder: project.folder,
       settings: project.settings,
-      cards: project.cards.map(({ path, name, copies, noBack, rotation }) => ({
+      cards: project.cards.map(({ path, name, copies, noBack, rotation, back }) => ({
         path,
         name,
         copies,
         ...(noBack ? { noBack } : {}),
         ...(rotation ? { rotation } : {}),
+        ...(back ? { back: { path: back.path, name: back.name } } : {}),
       })),
       back: project.back ? { path: project.back.path, name: project.back.name } : null,
     },
@@ -105,12 +130,14 @@ export function parseProject(text: string): ProjectFile {
     cards: (json.cards as Record<string, unknown>[]).map((c) => {
       const copies = Number(c?.copies);
       const rotation = readRotation(c?.rotation);
+      const back = readBack(c?.back);
       return {
         path: str(c?.path),
         name: str(c?.name),
         copies: Number.isInteger(copies) && copies > 0 ? copies : 1,
         ...(c?.noBack === true ? { noBack: true as const } : {}),
         ...(rotation ? { rotation } : {}),
+        ...(back ? { back } : {}),
       };
     }),
     back: readBack(json.back),

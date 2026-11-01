@@ -11,8 +11,10 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { formatSize } from '../../components/formatSize';
 import { cardFit, fixedSize, lowResolution, printedDpi } from '../../lib/cardInfo';
+import { IMAGE_ACCEPT } from '../../lib/imageFormat';
 import { combineRotations, type Rotation } from '../../lib/template';
 import { useCardsStore, type CardImage } from '../../store/cardsStore';
+import { HeicOfflineError, loadImage } from './loadImages';
 import { rotationLabel } from './rotations';
 import { useSettingsStore } from '../../store/settingsStore';
 import styles from './CardTile.module.css';
@@ -27,6 +29,126 @@ const FORMAT_NAMES: Record<string, string> = {
   avif: 'AVIF',
   heic: 'HEIC',
 };
+
+/**
+ * Qué reverso lleva la carta: el común, uno propio (un archivo nuevo o uno que ya usan otras
+ * cartas) o ninguno.
+ */
+function BackChoice({ card }: { card: CardImage }) {
+  const { t } = useTranslation();
+  const backs = useCardsStore((s) => s.backs);
+  const users = useCardsStore((s) =>
+    card.backId ? s.cards.filter((c) => c.backId === card.backId).length : 0,
+  );
+  const [picking, setPicking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const group = useId();
+  const own = card.backId ? backs.find((b) => b.id === card.backId) : undefined;
+  const mode = card.noBack ? 'none' : own || picking ? 'own' : 'common';
+  const store = useCardsStore.getState;
+
+  const choose = (backId: string) => {
+    store().setOwnBack(card.id, backId);
+    setPicking(false);
+    setError(null);
+  };
+  async function load(file: File) {
+    try {
+      choose(store().addBack(await loadImage(file)));
+    } catch (err) {
+      const offline = err instanceof HeicOfflineError ? ` ${t('cards.heicOffline')}` : '';
+      setError(t('settings.backFailed', { name: file.name }) + offline);
+    }
+  }
+
+  const radio = (value: typeof mode, label: string, select: () => void) => (
+    <label className={styles.infoCheck}>
+      <input type="radio" name={group} checked={mode === value} onChange={select} />
+      {label}
+    </label>
+  );
+
+  return (
+    <fieldset className={styles.infoBack}>
+      <legend>{t('cardInfo.back')}</legend>
+      {radio('common', t('cardInfo.backCommon'), () => {
+        setPicking(false);
+        store().setNoBack(card.id, false);
+        store().setOwnBack(card.id, null);
+      })}
+      {radio('own', t('cardInfo.backOwn'), () => {
+        store().setNoBack(card.id, false);
+        setPicking(true);
+      })}
+      {mode === 'own' && own && !picking ? (
+        <div className={styles.infoBackPicked}>
+          {own.thumbUrl ? (
+            <img src={own.thumbUrl} alt="" />
+          ) : (
+            <span className={styles.infoBackEmpty} />
+          )}
+          <span>
+            <span className={styles.infoBackName}>{own.name}</span>
+            {own.missing ? (
+              <span className={styles.infoWarning}>{t('cardInfo.backMissing')}</span>
+            ) : (
+              <span className={styles.infoBackUsers}>
+                {t('cardInfo.backUsers', { count: users })}
+              </span>
+            )}
+            <button type="button" className={styles.infoLink} onClick={() => setPicking(true)}>
+              {t('cardInfo.backChange')}
+            </button>
+          </span>
+        </div>
+      ) : null}
+      {mode === 'own' && (!own || picking) ? (
+        <div className={styles.infoBackPicker}>
+          {backs
+            .filter((b) => b.id !== card.backId)
+            .map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                className={styles.infoBackOption}
+                onClick={() => choose(b.id)}
+              >
+                {b.thumbUrl ? (
+                  <img src={b.thumbUrl} alt="" />
+                ) : (
+                  <span className={styles.infoBackEmpty} />
+                )}
+                <span>{b.name}</span>
+              </button>
+            ))}
+          <label className={styles.infoLink}>
+            {t('cardInfo.backFile')}
+            <input
+              type="file"
+              accept={IMAGE_ACCEPT}
+              className="visually-hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (file) void load(file);
+              }}
+            />
+          </label>
+          {own ? (
+            <button type="button" className={styles.infoLink} onClick={() => setPicking(false)}>
+              {t('cardInfo.backCancel')}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {radio('none', t('cardInfo.noBack'), () => {
+        setPicking(false);
+        store().setNoBack(card.id, true);
+      })}
+      {error ? <p className={styles.infoWarning}>{error}</p> : null}
+    </fieldset>
+  );
+}
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -186,16 +308,7 @@ function InfoContent({
           </button>
         </div>
       ) : null}
-      {settings.backs.enabled ? (
-        <label className={styles.infoCheck}>
-          <input
-            type="checkbox"
-            checked={card.noBack ?? false}
-            onChange={(e) => useCardsStore.getState().setNoBack(card.id, e.target.checked)}
-          />
-          {t('cardInfo.noBack')}
-        </label>
-      ) : null}
+      {settings.backs.enabled ? <BackChoice card={card} /> : null}
       <p className={styles.infoPosition}>{t('cardInfo.title', { position, total })}</p>
     </>
   );

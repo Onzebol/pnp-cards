@@ -24,6 +24,7 @@ import { totalCards, useCardsStore } from '../../store/cardsStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import { IMAGE_ACCEPT } from '../../lib/imageFormat';
 import { CardTile } from './CardTile';
+import { OwnBacks } from './OwnBacks';
 import { autoRotatedOf, rotationsOf } from './rotations';
 import { loadImages as defaultLoadImages, looseFiles, type LoadResult } from './loadImages';
 import styles from './CardTray.module.css';
@@ -210,6 +211,7 @@ export function CardTray({
         </p>
       ) : null}
 
+      <OwnBacks />
       {cards.length === 0 ? (
         <div className={styles.empty}>
           <p>{t('cards.empty')}</p>

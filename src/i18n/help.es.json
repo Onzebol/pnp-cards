@@ -332,7 +332,15 @@
         },
         {
           "type": "p",
-          "text": "Para que una carta salga sin reverso, márcalo en su información (el botón de la carta): su hueco queda vacío en la página de reversos."
+          "text": "Cada carta puede llevar otro reverso. En su información (el botón de la carta), en «Reverso», elige «Reverso común», «Reverso propio» o «Sin reverso». Con «Reverso propio» puedes elegir una imagen o uno de los reversos que ya usan otras cartas: así, varias cartas comparten la misma imagen, como los reversos de un mismo mazo."
+        },
+        {
+          "type": "p",
+          "text": "Las cartas con reverso propio llevan en la tarjeta una marca con su miniatura, y encima de la lista aparece «Reversos propios», con cada imagen y cuántas cartas la usan. Las cartas sin reverso dejan su hueco vacío en la página de reversos."
+        },
+        {
+          "type": "note",
+          "text": "Si no eliges reverso común, las cartas sin reverso propio salen sin reverso. Si al abrir un proyecto no se encuentra la imagen de un reverso propio, sus cartas salen sin reverso hasta que la busques en «Reversos propios»."
         },
         {
           "type": "p",
@@ -394,7 +402,7 @@
         },
         {
           "type": "p",
-          "text": "El nombre del proyecto, los ajustes (con la plantilla, si la usas) y, por cada carta, su ruta dentro de la carpeta de imágenes, su nombre, sus copias y si va sin reverso. También la imagen del reverso común. Es un archivo de texto pequeño; las imágenes siguen en tu carpeta y no se copian a ningún sitio."
+          "text": "El nombre del proyecto, los ajustes (con la plantilla, si la usas) y, por cada carta, su ruta dentro de la carpeta de imágenes, su nombre, sus copias, si va sin reverso y la ruta de su reverso propio. También la imagen del reverso común. Es un archivo de texto pequeño; las imágenes siguen en tu carpeta y no se copian a ningún sitio."
         },
         {
           "type": "h",

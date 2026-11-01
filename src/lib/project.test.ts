@@ -40,7 +40,7 @@ describe('archivo .pnpcards', () => {
     const json = JSON.parse(serializeProject(project));
     expect(json).toMatchObject({
       format: 'pnp-cards',
-      version: 3,
+      version: 4,
       name: 'Mi juego',
       folder: 'cartas',
     });
@@ -75,6 +75,46 @@ describe('archivo .pnpcards', () => {
     expect(parseProject(serializeProject(rotated))).toEqual(rotated);
   });
 
+  it('guarda la ruta del reverso propio de cada carta, solo en las que lo tienen', () => {
+    const own: ProjectFile = {
+      ...withBack,
+      cards: [
+        {
+          path: 'templos/egipcio.png',
+          name: 'egipcio.png',
+          copies: 1,
+          back: { path: 'templos/templo trasera.png', name: 'templo trasera.png' },
+        },
+        { path: 'elfo.png', name: 'elfo.png', copies: 1 },
+      ],
+    };
+    const json = JSON.parse(serializeProject(own));
+    expect(json.cards).toEqual([
+      {
+        path: 'templos/egipcio.png',
+        name: 'egipcio.png',
+        copies: 1,
+        back: { path: 'templos/templo trasera.png', name: 'templo trasera.png' },
+      },
+      { path: 'elfo.png', name: 'elfo.png', copies: 1 },
+    ]);
+    expect(parseProject(serializeProject(own))).toEqual(own);
+  });
+
+  it('ignora un reverso propio sin nombre', () => {
+    const p = parseProject(
+      JSON.stringify({
+        format: 'pnp-cards',
+        version: 4,
+        cards: [
+          { path: 'a.png', name: 'a.png', copies: 1, back: { path: 'x.png', name: '' } },
+          { path: 'b.png', name: 'b.png', copies: 1, back: 'x.png' },
+        ],
+      }),
+    );
+    expect(p.cards.map((c) => c.back)).toEqual([undefined, undefined]);
+  });
+
   it('ignora un giro que no sea de cuartos de vuelta', () => {
     const p = parseProject(
       JSON.stringify({
@@ -90,8 +130,13 @@ describe('archivo .pnpcards', () => {
     expect(p.cards.map((c) => c.rotation)).toEqual([undefined, undefined, 270]);
   });
 
+  it('abre los proyectos de la versión 3, sin reversos propios', () => {
+    const p = parseProject(serializeProject(withBack).replace('"version": 4', '"version": 3'));
+    expect(p).toEqual(withBack);
+  });
+
   it('abre los proyectos de la versión 2 con las cartas sin girar', () => {
-    const p = parseProject(serializeProject(withBack).replace('"version": 3', '"version": 2'));
+    const p = parseProject(serializeProject(withBack).replace('"version": 4', '"version": 2'));
     expect(p).toEqual(withBack);
     expect(p.settings.autoRotate).toBe(false);
   });

@@ -29,12 +29,17 @@ export interface CardImage {
   missing?: boolean;
   /** La carta no lleva reverso (con los reversos activados). */
   noBack?: boolean;
+  /** Reverso propio: id de su imagen en `backs`. Sin él, la carta lleva el reverso común. */
+  backId?: string;
   /** Giro elegido para la carta (antihorario); ausente, sin giro (o el automático). */
   rotation?: Rotation;
   copies: number;
 }
 
-export type NewImage = Omit<CardImage, 'id' | 'copies'>;
+export type NewImage = Omit<CardImage, 'id' | 'copies' | 'backId'>;
+
+/** Imagen de un reverso propio, que pueden compartir varias cartas. */
+export type BackImage = NewImage & { id: string };
 
 /** Carpeta de las imágenes del proyecto. En Chrome y Edge se guarda el acceso para reabrirla. */
 export interface ImageFolder {
@@ -49,12 +54,24 @@ interface CardsState {
   cards: CardImage[];
   /** Imagen del reverso común (no es una carta: no tiene copias ni va en la lista). */
   back: NewImage | null;
+  /**
+   * Reversos propios de las cartas (cada carta apunta a uno con `backId`). Se descartan solos
+   * cuando ya no los usa ninguna carta.
+   */
+  backs: BackImage[];
   /** Última carta quitada, para poder deshacerlo. */
   lastRemoved: { card: CardImage; index: number } | null;
   addImages: (images: NewImage[]) => void;
   addBlank: () => void;
   setCopies: (id: string, copies: number) => void;
+  /** Marca la carta sin reverso (y le quita el propio) o la devuelve al reverso común. */
   setNoBack: (id: string, noBack: boolean) => void;
+  /** Añade la imagen de un reverso propio y devuelve su id, para asignarlo a las cartas. */
+  addBack: (image: NewImage) => string;
+  /** Reverso propio de la carta (un id de `backs`); null la devuelve al reverso común. */
+  setOwnBack: (id: string, backId: string | null) => void;
+  /** Pone la imagen encontrada en un reverso propio que faltaba (para todas sus cartas). */
+  replaceBack: (id: string, image: NewImage) => void;
   /** Giro elegido para la carta; 0 lo quita. */
   setRotation: (id: string, rotation: Rotation) => void;
   setBack: (back: NewImage | null) => void;
@@ -69,9 +86,10 @@ interface CardsState {
   /** Sustituye el proyecto actual por otro. */
   load: (
     name: string,
-    cards: (NewImage & { copies: number })[],
+    cards: (NewImage & { copies: number; backId?: string })[],
     folder: ImageFolder | null,
     back?: NewImage | null,
+    backs?: BackImage[],
   ) => void;
   /** Proyecto nuevo: sin nombre ni cartas. */
   reset: () => void;
@@ -86,6 +104,25 @@ export const printableCards = (cards: CardImage[]) => cards.filter((c) => !c.mis
 export const printableBack = (back: NewImage | null) =>
   back?.blob && !back.missing ? (back as NewImage & { blob: Blob }) : null;
 
+/**
+ * Cómo lleva el reverso una carta al imprimir: su reverso propio (si tiene y se ha encontrado) o,
+ * sin él, el común. Si su reverso propio falta, la carta va sin reverso (hueco vacío) en lugar
+ * de llevar otro que no es el suyo.
+ */
+export function cardBack(
+  card: CardImage,
+  backs: BackImage[],
+): { noBack: boolean; ownBack?: BackImage & { blob: Blob } } {
+  const own = card.backId ? backs.find((b) => b.id === card.backId) : undefined;
+  if (card.noBack) return { noBack: true };
+  if (card.backId) {
+    return own?.blob && !own.missing
+      ? { noBack: false, ownBack: own as BackImage & { blob: Blob } }
+      : { noBack: true };
+  }
+  return { noBack: false };
+}
+
 const revoke = (image: { thumbUrl: string | null }) => {
   if (image.thumbUrl) URL.revokeObjectURL(image.thumbUrl);
 };
@@ -94,13 +131,39 @@ const revokeAll = (s: CardsState) => {
   s.cards.forEach(revoke);
   if (s.lastRemoved) revoke(s.lastRemoved.card);
   if (s.back) revoke(s.back);
+  s.backs.forEach(revoke);
 };
+
+/** La carta sin `backId`. */
+function withoutOwnBack(card: CardImage): CardImage {
+  const next = { ...card };
+  delete next.backId;
+  return next;
+}
+
+/**
+ * Los reversos propios que siguen en uso (por una carta de la lista o por la quitada, mientras se
+ * pueda deshacer); los demás se descartan liberando su miniatura.
+ */
+function keepUsedBacks(
+  backs: BackImage[],
+  cards: CardImage[],
+  lastRemoved: CardsState['lastRemoved'],
+): BackImage[] {
+  const used = new Set(cards.map((c) => c.backId));
+  if (lastRemoved) used.add(lastRemoved.card.backId);
+  const kept = backs.filter((b) => used.has(b.id));
+  if (kept.length === backs.length) return backs;
+  backs.filter((b) => !used.has(b.id)).forEach(revoke);
+  return kept;
+}
 
 export const useCardsStore = create<CardsState>()((set) => ({
   name: '',
   folder: null,
   cards: [],
   back: null,
+  backs: [],
   lastRemoved: null,
 
   addImages: (images) =>
@@ -142,7 +205,28 @@ export const useCardsStore = create<CardsState>()((set) => ({
     })),
 
   setNoBack: (id, noBack) =>
-    set((s) => ({ cards: s.cards.map((c) => (c.id === id ? { ...c, noBack } : c)) })),
+    set((s) => {
+      const cards = s.cards.map((c) => {
+        if (c.id !== id) return c;
+        return noBack ? { ...withoutOwnBack(c), noBack } : { ...c, noBack };
+      });
+      return { cards, backs: keepUsedBacks(s.backs, cards, s.lastRemoved) };
+    }),
+
+  addBack: (image) => {
+    const id = crypto.randomUUID();
+    set((s) => ({ backs: [...s.backs, { ...image, id }] }));
+    return id;
+  },
+
+  setOwnBack: (id, backId) =>
+    set((s) => {
+      const cards = s.cards.map((c) => {
+        if (c.id !== id) return c;
+        return backId === null ? withoutOwnBack(c) : { ...c, backId, noBack: false };
+      });
+      return { cards, backs: keepUsedBacks(s.backs, cards, s.lastRemoved) };
+    }),
 
   setRotation: (id, rotation) =>
     set((s) => ({
@@ -160,16 +244,24 @@ export const useCardsStore = create<CardsState>()((set) => ({
       return { back };
     }),
 
+  replaceBack: (id, image) =>
+    set((s) => ({
+      backs: s.backs.map((b) => {
+        if (b.id !== id) return b;
+        revoke(b);
+        return { ...image, id, missing: false };
+      }),
+    })),
+
   remove: (id) =>
     set((s) => {
       const index = s.cards.findIndex((c) => c.id === id);
       if (index === -1) return s;
       // La miniatura de la carta quitada se conserva hasta que ya no se pueda deshacer.
       if (s.lastRemoved) revoke(s.lastRemoved.card);
-      return {
-        cards: s.cards.filter((c) => c.id !== id),
-        lastRemoved: { card: s.cards[index], index },
-      };
+      const cards = s.cards.filter((c) => c.id !== id);
+      const lastRemoved = { card: s.cards[index], index };
+      return { cards, lastRemoved, backs: keepUsedBacks(s.backs, cards, lastRemoved) };
     }),
 
   replaceImage: (id, image) =>
@@ -180,8 +272,8 @@ export const useCardsStore = create<CardsState>()((set) => ({
         // Si es la misma imagen se conserva su ruta en la carpeta del proyecto, y la carta
         // sigue con sus copias, su giro y si va sin reverso.
         const path = image.name === c.name ? c.path : image.path;
-        const { copies, noBack, rotation } = c;
-        return { ...image, id, path, copies, noBack, rotation, missing: false };
+        const { copies, noBack, rotation, backId } = c;
+        return { ...image, id, path, copies, noBack, rotation, backId, missing: false };
       }),
     })),
 
@@ -208,14 +300,14 @@ export const useCardsStore = create<CardsState>()((set) => ({
   clear: () =>
     set((s) => {
       revokeAll(s);
-      return { cards: [], lastRemoved: null };
+      return { cards: [], backs: [], lastRemoved: null };
     }),
 
   setName: (name) => set({ name }),
 
   setFolder: (folder) => set({ folder }),
 
-  load: (name, cards, folder, back = null) =>
+  load: (name, cards, folder, back = null, backs = []) =>
     set((s) => {
       revokeAll(s);
       return {
@@ -223,6 +315,7 @@ export const useCardsStore = create<CardsState>()((set) => ({
         folder,
         cards: cards.map((c) => ({ ...c, id: crypto.randomUUID() })),
         back,
+        backs,
         lastRemoved: null,
       };
     }),
@@ -230,6 +323,6 @@ export const useCardsStore = create<CardsState>()((set) => ({
   reset: () =>
     set((s) => {
       revokeAll(s);
-      return { name: '', folder: null, cards: [], back: null, lastRemoved: null };
+      return { name: '', folder: null, cards: [], back: null, backs: [], lastRemoved: null };
     }),
 }));

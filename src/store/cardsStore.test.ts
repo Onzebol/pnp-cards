@@ -54,6 +54,130 @@ describe('cardsStore', () => {
     expect(store().cards[0]).toMatchObject({ rotation: 90, noBack: true });
   });
 
+  describe('reversos propios', () => {
+    const revoke = vi.fn();
+    beforeEach(() => {
+      revoke.mockClear();
+      URL.revokeObjectURL = revoke;
+    });
+
+    it('varias cartas comparten la misma imagen de reverso', () => {
+      store().addImages([image('a.png'), image('b.png'), image('c.png')]);
+      const [a, b] = store().cards;
+      const back = store().addBack(image('trasera.png'));
+      store().setOwnBack(a.id, back);
+      store().setOwnBack(b.id, back);
+      expect(store().backs).toHaveLength(1);
+      expect(store().backs[0]).toMatchObject({ id: back, name: 'trasera.png' });
+      expect(store().cards.map((c) => c.backId)).toEqual([back, back, undefined]);
+    });
+
+    it('elegir un reverso propio quita la marca de sin reverso', () => {
+      store().addImages([image('a.png')]);
+      const id = store().cards[0].id;
+      store().setNoBack(id, true);
+      store().setOwnBack(id, store().addBack(image('trasera.png')));
+      expect(store().cards[0].noBack).toBeFalsy();
+    });
+
+    it('elegir sin reverso o el común quita el propio', () => {
+      store().addImages([image('a.png'), image('b.png')]);
+      const [a, b] = store().cards;
+      const back = store().addBack(image('trasera.png'));
+      store().setOwnBack(a.id, back);
+      store().setOwnBack(b.id, back);
+      store().setNoBack(a.id, true);
+      store().setOwnBack(b.id, null);
+      expect(store().cards.map((c) => c.backId)).toEqual([undefined, undefined]);
+      expect(store().cards[0].noBack).toBe(true);
+    });
+
+    it('descarta el reverso que ya no usa ninguna carta y libera su miniatura', () => {
+      store().addImages([image('a.png'), image('b.png')]);
+      const [a, b] = store().cards;
+      const back = store().addBack(image('trasera.png', { thumbUrl: 'blob:trasera' }));
+      store().setOwnBack(a.id, back);
+      store().setOwnBack(b.id, back);
+      store().setOwnBack(a.id, null);
+      expect(store().backs).toHaveLength(1);
+      expect(revoke).not.toHaveBeenCalled();
+      store().setNoBack(b.id, true);
+      expect(store().backs).toEqual([]);
+      expect(revoke).toHaveBeenCalledWith('blob:trasera');
+    });
+
+    it('al quitar una carta conserva su reverso mientras se pueda deshacer', () => {
+      store().addImages([image('a.png'), image('b.png')]);
+      const [a, b] = store().cards;
+      const back = store().addBack(image('trasera.png', { thumbUrl: 'blob:trasera' }));
+      store().setOwnBack(a.id, back);
+      store().remove(a.id);
+      expect(store().backs).toHaveLength(1);
+      store().undoRemove();
+      expect(store().cards[0].backId).toBe(back);
+      store().remove(a.id);
+      // Al quitar otra, ya no se puede deshacer la primera: su reverso sobra.
+      store().remove(b.id);
+      expect(store().backs).toEqual([]);
+      expect(revoke).toHaveBeenCalledWith('blob:trasera');
+    });
+
+    it('al encontrar la imagen de una carta que falta conserva su reverso propio', () => {
+      store().addImages([image('a.png')]);
+      const id = store().cards[0].id;
+      const back = store().addBack(image('trasera.png'));
+      store().setOwnBack(id, back);
+      store().replaceImage(id, image('a.png'));
+      expect(store().cards[0].backId).toBe(back);
+    });
+
+    it('al encontrar la imagen de un reverso que falta, la sustituye para todas sus cartas', () => {
+      store().addImages([image('a.png')]);
+      const id = store().cards[0].id;
+      const back = store().addBack(
+        image('trasera.png', { blob: null, thumbUrl: 'blob:vieja', missing: true }),
+      );
+      store().setOwnBack(id, back);
+      store().replaceBack(back, image('trasera.png', { thumbUrl: 'blob:nueva' }));
+      expect(store().backs).toEqual([
+        expect.objectContaining({ id: back, thumbUrl: 'blob:nueva', missing: false }),
+      ]);
+      expect(store().cards[0].backId).toBe(back);
+      expect(revoke).toHaveBeenCalledWith('blob:vieja');
+    });
+
+    it('carga un proyecto con sus reversos propios', () => {
+      store().load(
+        'Mi juego',
+        [
+          { ...image('a.png'), copies: 1, backId: 'r1' },
+          { ...image('b.png'), copies: 1 },
+        ],
+        null,
+        null,
+        [{ ...image('trasera.png'), id: 'r1' }],
+      );
+      expect(store().backs.map((b) => b.id)).toEqual(['r1']);
+      expect(store().cards[0].backId).toBe('r1');
+    });
+
+    it('vaciar la lista o empezar un proyecto nuevo quita los reversos propios', () => {
+      store().addImages([image('a.png')]);
+      store().setOwnBack(
+        store().cards[0].id,
+        store().addBack(image('trasera.png', { thumbUrl: 'blob:t' })),
+      );
+      store().clear();
+      expect(store().backs).toEqual([]);
+      expect(revoke).toHaveBeenCalledWith('blob:t');
+      store().load('x', [{ ...image('a.png'), copies: 1, backId: 'r1' }], null, null, [
+        { ...image('trasera.png'), id: 'r1' },
+      ]);
+      store().reset();
+      expect(store().backs).toEqual([]);
+    });
+  });
+
   it('añade una imagen en blanco al final', () => {
     store().addImages([image('a.png')]);
     store().addBlank();
