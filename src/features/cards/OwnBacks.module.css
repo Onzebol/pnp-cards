@@ -13,9 +13,10 @@
   font-weight: 600;
 }
 
+/* Todas del mismo ancho, repartidas en las columnas que quepan. */
 .list {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(15rem, 100%), 1fr));
   gap: var(--space-2);
   margin: 0;
   padding: 0;
@@ -26,7 +27,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  max-width: 100%;
+  min-width: 0;
   padding: var(--space-1) var(--space-2) var(--space-1) var(--space-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-s);
@@ -57,7 +58,6 @@ span.thumb {
 }
 
 .name {
-  max-width: 14rem;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;

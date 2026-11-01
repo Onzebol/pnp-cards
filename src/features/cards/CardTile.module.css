@@ -368,11 +368,11 @@
   color: var(--danger);
 }
 
-/* Marca de reverso propio: su miniatura y «Reverso», en el mismo sitio que «sin reverso». */
+/* Marca de reverso propio: su miniatura y «Reverso», en la esquina inferior derecha. */
 .ownBack {
   position: absolute;
   top: calc(var(--space-2) + 160px - 2.25rem - 4px);
-  left: calc(var(--space-2) + 4px);
+  right: calc(var(--space-2) + 4px);
   display: flex;
   align-items: center;
   gap: var(--space-1);
