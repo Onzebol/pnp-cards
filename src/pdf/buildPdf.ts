@@ -26,7 +26,7 @@ import { roundedRectPath, type PathCommand } from '../lib/corners';
 import { imageDrawRect } from '../lib/crop';
 import type { Dpi } from '../lib/dpi';
 import type { HeaderPlacement } from '../lib/header';
-import { planDocument } from '../lib/plan';
+import { planDocument, type PlannedItem } from '../lib/plan';
 import { RULER_LABEL, rulerCells, type RulerPlacement } from '../lib/ruler';
 import { slotLocalSize, slotMatrix, type Rotation } from '../lib/template';
 import { INK_SAVER_LIGHTEN, type LayoutSettings } from '../lib/settings';
@@ -41,11 +41,13 @@ export interface PdfCard {
   copies: number;
   /** La carta no lleva reverso (con los reversos activados). */
   noBack?: boolean;
+  /** Reverso propio: índice de su imagen en `backs`. Sin él, la carta lleva el común. */
+  ownBack?: number;
   /** Giro elegido para la carta (antihorario). */
   rotation?: Rotation;
 }
 
-/** Imagen del reverso común: se ajusta a cada hueco, así que no importan sus ppp. */
+/** Imagen de un reverso (el común o uno propio): se ajusta a cada hueco, así que no importan sus ppp. */
 export interface PdfBack {
   data: Blob;
   format: 'jpeg' | 'png';
@@ -63,8 +65,10 @@ export interface HeaderTexts {
 export interface BuildInput {
   settings: LayoutSettings;
   cards: PdfCard[];
-  /** Obligatorio con los reversos activados. */
+  /** Reverso común. Con los reversos activados, hace falta este o alguno propio. */
   back?: PdfBack | null;
+  /** Reversos propios, que las cartas señalan con `ownBack` (varias pueden compartir uno). */
+  backs?: PdfBack[];
   title?: string;
   /** Obligatorio con la cabecera activada (`settings.header`). */
   header?: HeaderTexts | null;
@@ -194,12 +198,19 @@ export async function buildPdf(
   input: BuildInput,
   onProgress?: ProgressHandler,
 ): Promise<Uint8Array> {
-  const { settings, cards, back = null } = input;
+  const { settings, cards, back = null, backs = [] } = input;
   const plan = planDocument(
     settings,
-    cards.map((c) => ({ ...c, blank: c.data === null })),
+    cards.map((c) => ({
+      ...c,
+      blank: c.data === null,
+      ownBack: c.ownBack === undefined ? undefined : backs[c.ownBack],
+    })),
     back,
   );
+  /** Imagen de un elemento de una página de reversos: el reverso propio de su carta o el común. */
+  const backImage = (item: PlannedItem): PdfBack =>
+    item.ownBack ? backs[cards[item.card].ownBack!] : back!;
 
   const doc = await PDFDocument.create();
   doc.setCreator('PnP Cards');
@@ -241,7 +252,7 @@ export async function buildPdf(
         page.drawRectangle({ ...band.rect, color: bleedColor });
         continue;
       }
-      const source = isBack ? back! : cards[item.card];
+      const source = isBack ? backImage(item) : cards[item.card];
       const img = await image(source);
       if (!img) {
         page.drawRectangle({ ...band.rect, color: bleedColor });
@@ -269,8 +280,9 @@ export async function buildPdf(
 
     const radius = planned.cornerRadius;
     const drawn: Rect[] = [];
-    for (const { card, placement, crop, rotation } of planned.items) {
-      const source = isBack ? back! : cards[card];
+    for (const item of planned.items) {
+      const { card, placement, crop, rotation } = item;
+      const source = isBack ? backImage(item) : cards[card];
       const img = await image(source);
       if (img) drawn.push(placement);
       if (img && rotation !== undefined) {

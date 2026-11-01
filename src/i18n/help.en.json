@@ -252,7 +252,39 @@
         },
         {
           "type": "p",
-          "text": "To print a card without a back, mark it in its info (the card’s button): its slot stays empty on the backs page."
+          "text": "Each card can have a different back. In its info (the card’s button), under “Back”, choose “Common back”, “Own back” or “No back”. With “Own back” you can pick an image or one of the backs other cards already use, so several cards share the same image, like the backs of one deck."
+        },
+        {
+          "type": "p",
+          "text": "Cards with their own back show a mark with its thumbnail, and “Own backs” above the list shows each image and how many cards use it. Cards with no back leave their slot empty on the backs page."
+        },
+        {
+          "type": "h",
+          "text": "Backs by file name"
+        },
+        {
+          "type": "p",
+          "text": "When you add images or a folder, those with “trasera”, “reverso”, “dorso” or “back” in their name (as a separate word, after a space, “_” or “-”) become the back of the cards whose names start the same way, and backs are turned on. Whatever follows the word counts too. A back’s “ xN” is not copies. If a card fits two backs, it takes the one with the longer name."
+        },
+        {
+          "type": "list",
+          "items": [
+            "“Deck - Tokens - Back x3.jpg” is the back of “Deck - Tokens 1.jpg”, “Deck - Tokens 2.jpg”…",
+            "“Deck - Back - 1.jpg” is the back of “Deck - 1-1.jpg”, “Deck - 1-2.jpg”…, but not of “Deck - 10-1.jpg”.",
+            "An image named “__back.jpg” (or “__reverso.jpg”) becomes the common back."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "A notice says what has been paired, with “Undo” to keep those images as ordinary cards. A back with no cards in its group is added as a card."
+        },
+        {
+          "type": "p",
+          "text": "If you untick “Add backs”, own backs go back to the list as ordinary cards (with the copies from their “ xN”), after their cards. When you tick it again, they are paired by name once more; the ones you chose by hand with a different name stay as cards and you’ll need to choose them again."
+        },
+        {
+          "type": "note",
+          "text": "If you don’t choose a common back, cards without their own back are printed with no back. If an own back image isn’t found when you open a project, its cards have no back until you find it in “Own backs”."
         },
         {
           "type": "p",
@@ -304,7 +336,7 @@
         { "type": "h", "text": "What the .pnpcards file holds" },
         {
           "type": "p",
-          "text": "The project name, the settings (with the template, if you use one) and, for each card, its path inside the image folder, its name, its copies and whether it has no back. Also the shared back image. It’s a small text file; the images stay in your folder and are never copied anywhere."
+          "text": "The project name, the settings (with the template, if you use one) and, for each card, its path inside the image folder, its name, its copies, whether it has no back and the path of its own back. Also the common back image. It’s a small text file; the images stay in your folder and are never copied anywhere."
         },
         { "type": "h", "text": "Why you’re asked for the folder" },
         {

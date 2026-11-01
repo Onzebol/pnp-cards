@@ -63,6 +63,50 @@ describe('PagePreview', () => {
     expect(backs).toEqual(['blob:dorso.png', 'blob:dorso.png', 'blob:dorso.png']);
   });
 
+  it('con reversos propios, cada carta muestra el suyo y las demás el común', async () => {
+    const user = userEvent.setup();
+    useSettingsStore.getState().update({ backs: { enabled: true, flip: 'long' } });
+    useCardsStore.getState().setBack(image('dorso.png'));
+    useCardsStore.getState().addImages([image('a.png'), image('b.png'), image('c.png')]);
+    const [a, b] = useCardsStore.getState().cards;
+    const templo = useCardsStore.getState().addBack(image('templo.png'));
+    useCardsStore.getState().setOwnBack(a.id, templo);
+    useCardsStore.getState().setOwnBack(b.id, templo);
+    const { container } = render(<PagePreview />);
+
+    await user.click(screen.getByRole('button', { name: 'Página siguiente' }));
+    const backs = [...images(container)].map((i) => i.getAttribute('href'));
+    expect(backs).toEqual(['blob:templo.png', 'blob:templo.png', 'blob:dorso.png']);
+  });
+
+  it('sin reverso común, solo muestra los reversos propios', async () => {
+    const user = userEvent.setup();
+    useSettingsStore.getState().update({ backs: { enabled: true, flip: 'long' } });
+    useCardsStore.getState().addImages([image('a.png'), image('b.png')]);
+    const [a] = useCardsStore.getState().cards;
+    useCardsStore
+      .getState()
+      .setOwnBack(a.id, useCardsStore.getState().addBack(image('templo.png')));
+    const { container } = render(<PagePreview />);
+
+    await user.click(screen.getByRole('button', { name: 'Página siguiente' }));
+    expect([...images(container)].map((i) => i.getAttribute('href'))).toEqual(['blob:templo.png']);
+  });
+
+  it('el reverso propio que falta deja el hueco vacío', async () => {
+    const user = userEvent.setup();
+    useSettingsStore.getState().update({ backs: { enabled: true, flip: 'long' } });
+    useCardsStore.getState().setBack(image('dorso.png'));
+    useCardsStore.getState().addImages([image('a.png'), image('b.png')]);
+    const [a] = useCardsStore.getState().cards;
+    const missing = image('templo.png', { blob: null, thumbUrl: null, missing: true });
+    useCardsStore.getState().setOwnBack(a.id, useCardsStore.getState().addBack(missing));
+    const { container } = render(<PagePreview />);
+
+    await user.click(screen.getByRole('button', { name: 'Página siguiente' }));
+    expect([...images(container)].map((i) => i.getAttribute('href'))).toEqual(['blob:dorso.png']);
+  });
+
   it('con reversos pero sin imagen, pide elegirla', () => {
     useSettingsStore.getState().update({ backs: { enabled: true, flip: 'long' } });
     useCardsStore.getState().setBack(null);

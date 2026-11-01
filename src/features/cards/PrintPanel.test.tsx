@@ -99,6 +99,33 @@ describe('PrintPanel', () => {
     expect(input.cards.map((c) => c.noBack ?? false)).toEqual([false, true]);
   });
 
+  it('envía cada reverso propio una vez y qué cartas lo usan; el que falta, sin reverso', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    useSettingsStore.getState().update({ backs: { enabled: true, flip: 'long' } });
+    const store = useCardsStore.getState();
+    store.addImages([image, image, image, image]);
+    const [a, b, c] = useCardsStore.getState().cards;
+    const templo = store.addBack({ ...image, name: 'templo.png', widthPx: 600 });
+    const perdido = store.addBack({ ...image, name: 'x.png', blob: null, missing: true });
+    store.setOwnBack(a.id, templo);
+    store.setOwnBack(b.id, templo);
+    store.setOwnBack(c.id, perdido);
+    const gen = controllable();
+    render(<PrintPanel generatePdf={gen.generate} />);
+
+    await user.click(screen.getByRole('button', { name: 'Generar PDF' }));
+    const [input] = gen.generate.mock.calls[0];
+    expect(input.backs).toHaveLength(1);
+    expect(input.backs![0]).toMatchObject({ format: 'png', widthPx: 600, heightPx: 1039 });
+    expect(input.cards.map((c) => [c.ownBack, c.noBack ?? false])).toEqual([
+      [0, false],
+      [0, false],
+      [undefined, true],
+      [undefined, false],
+    ]);
+  });
+
   it('envía el giro elegido de cada carta', async () => {
     const user = userEvent.setup();
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});

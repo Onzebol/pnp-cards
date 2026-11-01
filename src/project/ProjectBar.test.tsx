@@ -163,6 +163,99 @@ describe('abrir un proyecto', () => {
     expect(useCardsStore.getState().back).toMatchObject({ name: 'dorso.png', missing: true });
   });
 
+  describe('con reversos propios', () => {
+    const trasera = { path: 'templos/templo trasera.png', name: 'templo trasera.png' };
+    const json = serializeProject({
+      name: 'Panteón',
+      folder: 'cartas',
+      settings: { ...DEFAULT_SETTINGS, backs: { enabled: true, flip: 'long' } },
+      cards: [
+        { path: 'templos/egipcio.png', name: 'egipcio.png', copies: 1, back: trasera },
+        { path: 'templos/fenicio.png', name: 'fenicio.png', copies: 1, back: trasera },
+        { path: 'serpiente.png', name: 'serpiente.png', copies: 2 },
+      ],
+      back: null,
+    });
+
+    it('carga una sola vez el reverso que comparten varias cartas', async () => {
+      const user = userEvent.setup();
+      fake.pickFolder.mockResolvedValue(
+        folderWith('cartas', [
+          'templos/egipcio.png',
+          'templos/fenicio.png',
+          'templos/templo trasera.png',
+          'serpiente.png',
+        ]),
+      );
+      renderPage();
+
+      await user.upload(screen.getByTestId('project-input'), new File([json], 'Panteón.pnpcards'));
+      // Tres cartas y un reverso.
+      expect(await screen.findByText(/El proyecto usa 4 imágenes/)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Elegir carpeta…' }));
+
+      expect(await screen.findByText('Has abierto Panteón.')).toBeInTheDocument();
+      const { cards, backs } = useCardsStore.getState();
+      expect(backs).toHaveLength(1);
+      expect(backs[0]).toMatchObject(trasera);
+      expect(cards.map((c) => c.backId)).toEqual([backs[0].id, backs[0].id, undefined]);
+    });
+
+    it('si el reverso propio no está, lo dice una vez y lo conserva para no perderlo', async () => {
+      const user = userEvent.setup();
+      fake.pickFolder.mockResolvedValue(
+        folderWith('cartas', ['templos/egipcio.png', 'templos/fenicio.png', 'serpiente.png']),
+      );
+      renderPage();
+
+      await user.upload(screen.getByTestId('project-input'), new File([json], 'Panteón.pnpcards'));
+      await user.click(await screen.findByRole('button', { name: 'Elegir carpeta…' }));
+      expect(
+        await screen.findByText('No se han encontrado: templos/templo trasera.png'),
+      ).toBeInTheDocument();
+      const { cards, backs } = useCardsStore.getState();
+      expect(backs).toEqual([expect.objectContaining({ ...trasera, missing: true })]);
+      expect(cards[0].backId).toBe(backs[0].id);
+    });
+
+    it('al guardar, cada carta lleva la ruta de su reverso propio', async () => {
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+      let saved: Blob | undefined;
+      URL.createObjectURL = vi.fn((blob: Blob) => {
+        saved = blob;
+        return 'blob:x';
+      });
+      const card = (name: string) => ({
+        name,
+        path: name,
+        blob: png(name),
+        format: 'png' as const,
+        widthPx: 1,
+        heightPx: 1,
+        dpi: null,
+        thumbUrl: null,
+        copies: 1,
+      });
+      useCardsStore
+        .getState()
+        .load(
+          'Panteón',
+          [{ ...card('egipcio.png'), backId: 'r1' }, card('serpiente.png')],
+          { name: 'cartas', handle: null },
+          null,
+          [{ ...card('templo trasera.png'), path: 'templos/templo trasera.png', id: 'r1' }],
+        );
+      renderPage();
+
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Guardar archivo' }));
+      await waitFor(() => expect(click).toHaveBeenCalled());
+      expect(parseProject(await saved!.text()).cards).toEqual([
+        { path: 'egipcio.png', name: 'egipcio.png', copies: 1, back: trasera },
+        { path: 'serpiente.png', name: 'serpiente.png', copies: 1 },
+      ]);
+    });
+  });
+
   it('con cartas en la lista, pregunta antes de sustituir el proyecto', async () => {
     const user = userEvent.setup();
     useCardsStore.getState().load(

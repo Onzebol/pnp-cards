@@ -27,11 +27,13 @@ export interface CardSpec {
   copies: number;
   /** La carta no lleva reverso (con los reversos activados). */
   noBack?: boolean;
+  /** Reverso propio de la carta, en lugar del común. */
+  ownBack?: BackSpec;
   /** Giro elegido para la carta (antihorario); sin él, decide el giro automático si está activado. */
   rotation?: Rotation;
 }
 
-/** Imagen del reverso común: solo hace falta su tamaño, para recortarla a cada hueco. */
+/** Imagen de un reverso: solo hace falta su tamaño, para recortarla a cada hueco. */
 export interface BackSpec {
   widthPx: number;
   heightPx: number;
@@ -48,6 +50,8 @@ export interface PlannedItem {
    * del hueco de la plantilla o el del reverso. Ausente, la carta va derecha.
    */
   rotation?: Rotation;
+  /** En una página de reversos: el reverso es el propio de la carta, no el común. */
+  ownBack?: true;
 }
 
 export interface PlannedPage {
@@ -133,21 +137,31 @@ const MIRRORED_ROTATION: Record<Rotation, Rotation> = { 0: 0, 90: 270, 180: 180,
 const FLIPPED_ROTATION: Record<Rotation, Rotation> = { 0: 180, 90: 90, 180: 0, 270: 270 };
 
 /**
- * Página de reversos de una página de cartas: cada reverso en el hueco de su carta reflejado
- * como queda al dar la vuelta a la hoja, y recortado para llenarlo. Las cartas en blanco y las
- * marcadas sin reverso dejan su hueco vacío.
+ * Reverso que lleva una carta: el suyo, si tiene, o el común. null si no lleva ninguno (en
+ * blanco, marcada sin reverso o sin reverso propio cuando no hay común).
+ */
+function backOf(card: CardSpec, common: BackSpec | null): BackSpec | null {
+  if (card.blank || card.noBack) return null;
+  return card.ownBack ?? common;
+}
+
+/**
+ * Página de reversos de una página de cartas: cada reverso (el propio de la carta o el común) en
+ * el hueco de su carta reflejado como queda al dar la vuelta a la hoja, y recortado para
+ * llenarlo. Las cartas sin reverso (`backOf`) dejan su hueco vacío.
  */
 function backPage(
   settings: LayoutSettings,
   front: PlannedPage,
   cards: CardSpec[],
-  back: BackSpec,
+  back: BackSpec | null,
 ): PlannedPage {
   const { width: W, height: H } = front.size;
   const long = settings.backs.flip === 'long';
   const items = front.items
-    .filter((item) => !cards[item.card].blank && !cards[item.card].noBack)
+    .filter((item) => backOf(cards[item.card], back) !== null)
     .map(({ card, placement: box, rotation }): PlannedItem => {
+      const own = cards[card].ownBack;
       const flipped = (long ? MIRRORED_ROTATION : FLIPPED_ROTATION)[rotation ?? 0];
       const local = slotLocalSize(box, flipped);
       return {
@@ -155,9 +169,10 @@ function backPage(
         placement: long
           ? { ...box, x: W - box.x - box.width }
           : { ...box, y: H - box.y - box.height },
-        crop: coverCrop(back, local.width / local.height),
+        crop: coverCrop(own ?? back!, local.width / local.height),
         // Sin plantilla, un reverso derecho se queda sin giro, como las cartas.
         rotation: rotation === undefined && flipped === 0 ? undefined : flipped,
+        ...(own ? { ownBack: true as const } : {}),
       };
     });
   return {
@@ -228,7 +243,8 @@ function withBacks(
   back: BackSpec | null,
 ): PlannedPage[] {
   if (!settings.backs.enabled) return fronts;
-  if (!back) throw new PlanError('no-back');
+  // Sin reverso común vale con que alguna carta tenga el suyo; las demás quedan sin reverso.
+  if (!cards.some((c) => backOf(c, back) !== null)) throw new PlanError('no-back');
   const dx = mmToPt(settings.backOffsetMm.x);
   const dy = mmToPt(settings.backOffsetMm.y);
   return fronts.flatMap((page, i) => {

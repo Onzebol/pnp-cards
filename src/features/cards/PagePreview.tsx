@@ -14,9 +14,11 @@ import { RULER_LABEL, rulerCells, type RulerPlacement } from '../../lib/ruler';
 import { INK_SAVER_LIGHTEN, type BleedFill } from '../../lib/settings';
 import { slotLocalSize, slotSvgMatrix } from '../../lib/template';
 import {
+  cardBack,
   printableBack,
   printableCards,
   useCardsStore,
+  type BackImage,
   type CardImage,
   type NewImage,
 } from '../../store/cardsStore';
@@ -25,7 +27,7 @@ import styles from './PagePreview.module.css';
 
 type PlanResult = { plan: DocumentPlan } | { error: PlanError } | null;
 
-function usePlan(cards: CardImage[], back: NewImage | null): PlanResult {
+function usePlan(cards: CardImage[], back: NewImage | null, backs: BackImage[]): PlanResult {
   const settings = useSettingsStore((s) => s.settings);
   return useMemo(() => {
     if (cards.length === 0) return null;
@@ -33,7 +35,7 @@ function usePlan(cards: CardImage[], back: NewImage | null): PlanResult {
       return {
         plan: planDocument(
           settings,
-          cards.map((c) => ({ ...c, blank: c.blob === null })),
+          cards.map((c) => ({ ...c, blank: c.blob === null, ...cardBack(c, backs) })),
           back,
         ),
       };
@@ -41,7 +43,7 @@ function usePlan(cards: CardImage[], back: NewImage | null): PlanResult {
       if (err instanceof PlanError) return { error: err };
       throw err;
     }
-  }, [cards, back, settings]);
+  }, [cards, back, backs, settings]);
 }
 
 type PreviewImage = Pick<NewImage, 'thumbUrl' | 'widthPx' | 'heightPx'>;
@@ -286,7 +288,8 @@ export function PagePreview() {
   const backsEnabled = useSettingsStore((s) => s.settings.backs.enabled);
   const cards = useMemo(() => printableCards(all), [all]);
   const back = printableBack(useCardsStore((s) => s.back));
-  const result = usePlan(cards, back);
+  const backs = useCardsStore((s) => s.backs);
+  const result = usePlan(cards, back, backs);
   const bleedColor = useSettingsStore((s) => s.settings.bleed.color);
   const bleedFill = useSettingsStore((s) => s.settings.bleed.fill);
   const lineColor = useSettingsStore((s) => s.settings.cutLines.color);
@@ -314,6 +317,9 @@ export function PagePreview() {
   const page = plan.pages[index];
   const { width: W, height: H } = page.size;
   const isBack = page.side === 'back';
+  /** Imagen de un hueco: la carta o, en una página de reversos, su reverso (propio o común). */
+  const imageOf = (item: PlannedItem): PreviewImage =>
+    !isBack ? cards[item.card] : item.ownBack ? cardBack(cards[item.card], backs).ownBack! : back!;
 
   return (
     <div className={styles.preview}>
@@ -332,13 +338,7 @@ export function PagePreview() {
                 key={i}
                 band={band}
                 item={band.card === null ? undefined : page.items[band.card]}
-                card={
-                  band.card === null
-                    ? undefined
-                    : isBack
-                      ? back!
-                      : cards[page.items[band.card].card]
-                }
+                card={band.card === null ? undefined : imageOf(page.items[band.card])}
                 fill={bleedFill}
                 color={bleedColor}
                 pageHeight={H}
@@ -352,7 +352,7 @@ export function PagePreview() {
               <PreviewCard
                 key={i}
                 item={item}
-                card={isBack ? back! : cards[item.card]}
+                card={imageOf(item)}
                 pageHeight={H}
                 radius={page.cornerRadius}
               />

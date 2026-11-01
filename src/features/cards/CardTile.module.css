@@ -347,7 +347,7 @@
   pointer-events: none;
 }
 
-/* Marca de «sin reverso», sobre la esquina inferior de la miniatura. */
+/* Marca de «sin reverso» (o de reverso propio que falta), sobre la esquina inferior de la miniatura. */
 .noBack {
   position: absolute;
   top: calc(var(--space-2) + 160px - 1.5rem - 4px);
@@ -361,6 +361,143 @@
   line-height: 1.5rem;
   color: var(--text-muted);
   pointer-events: none;
+}
+
+.noBack[data-missing] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* Marca de reverso propio: su miniatura y «Reverso», en la esquina inferior derecha. */
+.ownBack {
+  position: absolute;
+  top: calc(var(--space-2) + 160px - 2.25rem - 4px);
+  right: calc(var(--space-2) + 4px);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 2.25rem;
+  padding: 2px var(--space-2) 2px 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  font-family: var(--font-label);
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.ownBack img {
+  height: 100%;
+  width: auto;
+  border-radius: 2px;
+}
+
+/* Elección del reverso en la información de la carta. */
+.infoBack {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2) 0 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.infoBack legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  color: var(--text-muted);
+}
+
+.infoBack .infoCheck {
+  margin-top: 0;
+}
+
+.infoBackPicked,
+.infoBackPicker {
+  display: flex;
+  gap: var(--space-2);
+  margin-left: 1.5rem;
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+}
+
+.infoBackPicker {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.infoBackPicked img,
+.infoBackOption img,
+.infoBackEmpty {
+  flex: none;
+  height: 3.5rem;
+  width: auto;
+  border-radius: 3px;
+}
+
+.infoBackEmpty {
+  width: 2.5rem;
+  border: 1.5px dashed var(--danger);
+}
+
+.infoBackPicked > span {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.infoBackName {
+  overflow-wrap: anywhere;
+}
+
+.infoBackUsers {
+  color: var(--text-muted);
+}
+
+.infoBackOption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.infoBackOption:hover {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.infoBackOption img {
+  height: 2.5rem;
+}
+
+.infoLink {
+  justify-self: start;
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.infoLink:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .infoCheck {

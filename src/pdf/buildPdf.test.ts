@@ -136,6 +136,52 @@ describe('buildPdf', () => {
       expect(pageContent(doc, 1)).toMatch(/-1 0 0 -1 [\d.]+ [\d.]+ cm/);
     });
 
+    describe('con reverso propio', () => {
+      /** El reverso propio es un JPG y el común un PNG: así se sabe cuál se dibuja. */
+      const own = { data: new Blob([jpg]), format: 'jpeg' as const, widthPx: 30, heightPx: 42 };
+
+      /** Filtro de cada imagen que se dibuja en la página (DCTDecode = JPG, FlateDecode = PNG). */
+      function drawnFilters(doc: PDFDocument, index: number) {
+        const xobjects = doc
+          .getPage(index)
+          .node.Resources()!
+          .lookup(PDFName.of('XObject'), PDFDict);
+        const names = [...pageContent(doc, index).matchAll(/\/(\S+) Do/g)].map((m) => m[1]);
+        return names.map((n) => {
+          const stream = xobjects.lookup(PDFName.of(n)) as PDFRawStream;
+          return String(stream.dict.get(PDFName.of('Filter')));
+        });
+      }
+
+      it('cada carta lleva su reverso propio y las demás el común', async () => {
+        const doc = await PDFDocument.load(
+          await buildPdf({
+            settings: withBacks('long'),
+            cards: [{ ...card(png, 'png', 1), ownBack: 0 }, card(png, 'png', 1)],
+            back,
+            backs: [own],
+          }),
+        );
+        expect(drawnFilters(doc, 1).sort()).toEqual(['/DCTDecode', '/FlateDecode']);
+      });
+
+      it('incrusta una sola vez el reverso que comparten varias cartas', async () => {
+        const doc = await PDFDocument.load(
+          await buildPdf({
+            settings: withBacks('long'),
+            cards: [
+              { ...card(png, 'png', 2), ownBack: 0 },
+              { ...card(png, 'png', 3), ownBack: 0 },
+            ],
+            backs: [own],
+          }),
+        );
+        // Dos cartas y un reverso; sin reverso común no hace falta ninguno más.
+        expect(imageStreams(doc)).toHaveLength(3);
+        expect(drawnFilters(doc, 1)).toEqual(Array(5).fill('/DCTDecode'));
+      });
+    });
+
     it('el progreso cuenta solo las cartas', async () => {
       const progress: [number, number][] = [];
       await buildPdf(

@@ -332,7 +332,39 @@
         },
         {
           "type": "p",
-          "text": "Para que una carta salga sin reverso, márcalo en su información (el botón de la carta): su hueco queda vacío en la página de reversos."
+          "text": "Cada carta puede llevar otro reverso. En su información (el botón de la carta), en «Reverso», elige «Reverso común», «Reverso propio» o «Sin reverso». Con «Reverso propio» puedes elegir una imagen o uno de los reversos que ya usan otras cartas: así, varias cartas comparten la misma imagen, como los reversos de un mismo mazo."
+        },
+        {
+          "type": "p",
+          "text": "Las cartas con reverso propio llevan en la tarjeta una marca con su miniatura, y encima de la lista aparece «Reversos propios», con cada imagen y cuántas cartas la usan. Las cartas sin reverso dejan su hueco vacío en la página de reversos."
+        },
+        {
+          "type": "h",
+          "text": "Reversos por el nombre del archivo"
+        },
+        {
+          "type": "p",
+          "text": "Al añadir imágenes o una carpeta, las que llevan en el nombre «trasera», «reverso», «dorso» o «back» (como palabra suelta, tras un espacio, «_» o «-») se toman como reverso de las cartas que empiezan igual, y se activan los reversos. Lo que va detrás de la palabra también cuenta. El « xN» de un reverso no son copias. Si una carta encaja en dos reversos, se queda con el de nombre más largo."
+        },
+        {
+          "type": "list",
+          "items": [
+            "«Mazo - Fichas - Trasera x3.jpg» es el reverso de «Mazo - Fichas 1.jpg», «Mazo - Fichas 2.jpg»…",
+            "«Mazo - Trasera - 1.jpg» es el reverso de «Mazo - 1-1.jpg», «Mazo - 1-2.jpg»…, pero no de «Mazo - 10-1.jpg».",
+            "Una imagen llamada «__reverso.jpg» (o «__back.jpg») pasa a ser el reverso común."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Un aviso dice qué se ha emparejado, con «Deshacer» para dejar esas imágenes como cartas normales. Un reverso sin ninguna carta de su grupo se añade como carta."
+        },
+        {
+          "type": "p",
+          "text": "Si desmarcas «Añadir reversos», los reversos propios vuelven a la lista como cartas normales (con las copias de su « xN»), detrás de sus cartas. Al marcarlo otra vez, se emparejan de nuevo por su nombre; los que elegiste a mano con otro nombre se quedan como cartas y tendrás que volver a elegirlos."
+        },
+        {
+          "type": "note",
+          "text": "Si no eliges reverso común, las cartas sin reverso propio salen sin reverso. Si al abrir un proyecto no se encuentra la imagen de un reverso propio, sus cartas salen sin reverso hasta que la busques en «Reversos propios»."
         },
         {
           "type": "p",
@@ -394,7 +426,7 @@
         },
         {
           "type": "p",
-          "text": "El nombre del proyecto, los ajustes (con la plantilla, si la usas) y, por cada carta, su ruta dentro de la carpeta de imágenes, su nombre, sus copias y si va sin reverso. También la imagen del reverso común. Es un archivo de texto pequeño; las imágenes siguen en tu carpeta y no se copian a ningún sitio."
+          "text": "El nombre del proyecto, los ajustes (con la plantilla, si la usas) y, por cada carta, su ruta dentro de la carpeta de imágenes, su nombre, sus copias, si va sin reverso y la ruta de su reverso propio. También la imagen del reverso común. Es un archivo de texto pequeño; las imágenes siguen en tu carpeta y no se copian a ningún sitio."
         },
         {
           "type": "h",

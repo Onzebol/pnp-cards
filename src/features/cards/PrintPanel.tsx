@@ -6,7 +6,14 @@ import { formatSize } from '../../components/formatSize';
 import { lowResolution } from '../../lib/cardInfo';
 import { safeFileName } from '../../lib/filename';
 import { resolveGrid } from '../../lib/layout';
-import { printableBack, printableCards, totalCards, useCardsStore } from '../../store/cardsStore';
+import {
+  cardBack,
+  printableBack,
+  printableCards,
+  totalCards,
+  useCardsStore,
+  type BackImage,
+} from '../../store/cardsStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import {
   generatePdf as defaultGeneratePdf,
@@ -23,6 +30,8 @@ type Status =
   | { kind: 'ready'; url: string; fileName: string; bytes: number; pages: number }
   | { kind: 'cancelled' }
   | { kind: 'error'; message: string };
+
+type NewBackLike = Pick<BackImage, 'format' | 'widthPx' | 'heightPx'> & { blob: Blob };
 
 export function PrintPanel({ generatePdf = defaultGeneratePdf }: { generatePdf?: GeneratePdf }) {
   const { t, i18n } = useTranslation();
@@ -45,6 +54,15 @@ export function PrintPanel({ generatePdf = defaultGeneratePdf }: { generatePdf?:
   async function generate() {
     const cards = printableCards(useCardsStore.getState().cards);
     const back = printableBack(useCardsStore.getState().back);
+    // Cada reverso propio va una vez y las cartas lo señalan por su posición en la lista.
+    const ownBacks = cards.map((c) => cardBack(c, useCardsStore.getState().backs));
+    const backs = [...new Set(ownBacks.flatMap((b) => (b.ownBack ? [b.ownBack] : [])))];
+    const toPdfBack = (b: NewBackLike) => ({
+      data: b.blob,
+      format: b.format,
+      widthPx: b.widthPx,
+      heightPx: b.heightPx,
+    });
     const { settings, openAfter } = useSettingsStore.getState();
     const rotations = rotationsOf(settings, cards);
     const projectName = useCardsStore.getState().name.trim();
@@ -68,22 +86,22 @@ export function PrintPanel({ generatePdf = defaultGeneratePdf }: { generatePdf?:
               total: '{{total}}',
             }),
           },
-          cards: cards.map((c) => ({
-            data: c.blob,
-            format: c.format,
-            widthPx: c.widthPx,
-            heightPx: c.heightPx,
-            dpi: c.dpi,
-            copies: c.copies,
-            noBack: c.noBack,
-            rotation: c.rotation,
-          })),
-          back: back && {
-            data: back.blob,
-            format: back.format,
-            widthPx: back.widthPx,
-            heightPx: back.heightPx,
-          },
+          cards: cards.map((c, i) => {
+            const { noBack, ownBack } = ownBacks[i];
+            return {
+              data: c.blob,
+              format: c.format,
+              widthPx: c.widthPx,
+              heightPx: c.heightPx,
+              dpi: c.dpi,
+              copies: c.copies,
+              noBack,
+              ...(ownBack ? { ownBack: backs.indexOf(ownBack) } : {}),
+              rotation: c.rotation,
+            };
+          }),
+          back: back && toPdfBack(back),
+          backs: backs.map(toPdfBack),
         },
         {
           signal: controller.signal,

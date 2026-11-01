@@ -98,6 +98,11 @@ export const CardTile = memo(function CardTile({
   const name = card.blob || card.missing ? card.name : t('cards.blankName');
   const settings = useSettingsStore((s) => s.settings);
   const withoutBack = settings.backs.enabled && card.noBack;
+  // Reverso propio de la carta (solo con los reversos activados y si no va sin reverso).
+  const own = useCardsStore((s) =>
+    card.backId ? s.backs.find((b) => b.id === card.backId) : undefined,
+  );
+  const showOwn = settings.backs.enabled && !card.noBack && own;
   // Ppp con los que saldrá impresa; sin ppp y sin fijar el tamaño, la etiqueta avisa con «?».
   const dpi = card.blob ? printedDpi(card, settings, rotation) : null;
   const low = card.blob ? lowResolution(card, settings, rotation) : false;
@@ -179,6 +184,17 @@ export const CardTile = memo(function CardTile({
         ) : null}
       </div>
       {withoutBack ? <span className={styles.noBack}>{t('cardInfo.noBack')}</span> : null}
+      {showOwn && own.missing ? (
+        <span className={styles.noBack} data-missing>
+          {t('cards.ownBackMissing')}
+        </span>
+      ) : null}
+      {showOwn && !own.missing ? (
+        <span className={styles.ownBack} title={t('cards.ownBackTitle', { name: own.name })}>
+          {own.thumbUrl ? <img src={own.thumbUrl} alt="" /> : null}
+          {t('cards.ownBack')}
+        </span>
+      ) : null}
       {card.blob && rotation !== 0 ? (
         <span className={styles.rotated}>
           {t('cards.rotated', { rotation: rotationLabel(t, rotation) })}
