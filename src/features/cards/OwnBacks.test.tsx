@@ -139,3 +139,78 @@ describe('reverso propio de una carta', () => {
     expect(screen.queryByLabelText('Reverso propio')).not.toBeInTheDocument();
   });
 });
+
+describe('emparejar reversos al añadir imágenes', () => {
+  /** Cargador de prueba: cada archivo se convierte en una imagen con su nombre. */
+  const loadImages = vi.fn(async (entries: { file: File; path: string }[]) => ({
+    images: entries.map((e) => image(e.file.name)),
+    failed: [],
+  }));
+
+  it('toma las traseras como reversos de su grupo, activa los reversos y deja deshacerlo', async () => {
+    const user = userEvent.setup();
+    render(<CardTray loadImages={loadImages} />, { wrapper: MemoryRouter });
+
+    await user.upload(screen.getByTestId('file-input'), [
+      png('templo - egipcio.png'),
+      png('templo - fenicio.png'),
+      png('templo - trasera x2.png'),
+      png('serpiente.png'),
+    ]);
+    expect(
+      await screen.findByText(
+        'Por su nombre, «templo - trasera x2.png» se ha tomado como reverso de 2 cartas. Se han activado los reversos.',
+      ),
+    ).toBeInTheDocument();
+    expect(store().cards.map((c) => c.name)).toEqual([
+      'templo - egipcio.png',
+      'templo - fenicio.png',
+      'serpiente.png',
+    ]);
+    expect(useSettingsStore.getState().settings.backs.enabled).toBe(true);
+    expect(screen.getAllByTitle('Reverso propio: templo - trasera x2.png')).toHaveLength(2);
+
+    await user.click(screen.getByRole('button', { name: 'Deshacer' }));
+    expect(store().cards.map((c) => [c.name, c.copies])).toEqual([
+      ['templo - egipcio.png', 1],
+      ['templo - fenicio.png', 1],
+      ['templo - trasera x2.png', 2],
+      ['serpiente.png', 1],
+    ]);
+    expect(store().backs).toEqual([]);
+    expect(useSettingsStore.getState().settings.backs.enabled).toBe(false);
+    expect(screen.queryByText(/Por su nombre/)).not.toBeInTheDocument();
+  });
+
+  it('avisa de varios reversos y del reverso común, sin tocar los reversos si ya estaban activados', async () => {
+    const user = userEvent.setup();
+    enableBacks();
+    render(<CardTray loadImages={loadImages} />, { wrapper: MemoryRouter });
+
+    await user.upload(screen.getByTestId('file-input'), [
+      png('__reverso.png'),
+      png('elfo - arquero.png'),
+      png('elfo - trasera.png'),
+      png('orco - jefe.png'),
+      png('orco - trasera.png'),
+    ]);
+    expect(
+      await screen.findByText(
+        'Por su nombre, 2 imágenes se han tomado como reversos de 2 cartas. «__reverso.png» es ahora el reverso común.',
+      ),
+    ).toBeInTheDocument();
+    expect(store().back?.name).toBe('__reverso.png');
+  });
+
+  it('sin nombres de reverso, añade las imágenes como siempre y no avisa', async () => {
+    const user = userEvent.setup();
+    render(<CardTray loadImages={loadImages} />, { wrapper: MemoryRouter });
+    await user.upload(screen.getByTestId('file-input'), [
+      png('a.png'),
+      png('dragón - trasera.png'),
+    ]);
+    expect(await screen.findByText('dragón - trasera.png')).toBeInTheDocument();
+    expect(screen.queryByText(/Por su nombre/)).not.toBeInTheDocument();
+    expect(useSettingsStore.getState().settings.backs.enabled).toBe(false);
+  });
+});

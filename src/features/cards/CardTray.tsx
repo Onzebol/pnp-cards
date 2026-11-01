@@ -15,12 +15,13 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { confirmAction } from '../../components/confirmAction';
 import type { FolderFile } from '../../lib/imageMatch';
 import { pickFolder as defaultPickFolder, type PickedFolder } from '../../project/folder';
 import { track } from '../../analytics/track';
 import { isProjectFile } from '../../project/useProjectActions';
-import { totalCards, useCardsStore } from '../../store/cardsStore';
+import { totalCards, useCardsStore, type PairingResult } from '../../store/cardsStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import { IMAGE_ACCEPT } from '../../lib/imageFormat';
 import { CardTile } from './CardTile';
@@ -30,6 +31,23 @@ import { loadImages as defaultLoadImages, looseFiles, type LoadResult } from './
 import styles from './CardTray.module.css';
 
 const hasFiles = (e: DragEvent) => e.dataTransfer.types.includes('Files');
+
+/** Aviso de lo emparejado por nombre: los reversos propios, el común y si se han activado. */
+function pairingText(t: TFunction, paired: PairingResult, enabledBacks: boolean) {
+  const parts: string[] = [];
+  if (paired.backs > 0) {
+    parts.push(
+      t('cards.paired', {
+        count: paired.backs,
+        name: paired.first,
+        cards: t('cards.pairedCards', { count: paired.cards }),
+      }),
+    );
+  }
+  if (paired.common) parts.push(t('cards.pairedCommon', { name: paired.common }));
+  if (enabledBacks) parts.push(t('cards.pairedEnabled'));
+  return parts.join(' ');
+}
 
 export function CardTray({
   loadImages = defaultLoadImages,
@@ -55,6 +73,9 @@ export function CardTray({
   const [heicOffline, setHeicOffline] = useState(false);
   const [dropping, setDropping] = useState(false);
   const [notice, setNotice] = useState('');
+  // Aviso del último emparejamiento de reversos por nombre (mientras se pueda deshacer).
+  const lastPairing = useCardsStore((s) => s.lastPairing);
+  const [pairing, setPairing] = useState<{ text: string; enabledBacks: boolean } | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -69,7 +90,14 @@ export function CardTray({
     setNotice('');
     try {
       const result = await loadImages(entries);
-      useCardsStore.getState().addImages(result.images);
+      const paired = useCardsStore.getState().addImagesPairingBacks(result.images);
+      if (paired) {
+        // Si se han encontrado reversos, los reversos se activan: si no, no se verían.
+        const { settings, update } = useSettingsStore.getState();
+        const enabledBacks = !settings.backs.enabled;
+        if (enabledBacks) update({ backs: { ...settings.backs, enabled: true } });
+        setPairing({ text: pairingText(t, paired, enabledBacks), enabledBacks });
+      }
       setFailed(result.failed);
       setHeicOffline(!!result.heicOffline);
     } finally {
@@ -181,6 +209,25 @@ export function CardTray({
         </p>
       </div>
 
+      {pairing && lastPairing ? (
+        <p className={styles.undo} role="status">
+          {pairing.text}
+          <button
+            type="button"
+            className={styles.link}
+            onClick={() => {
+              useCardsStore.getState().undoPairing();
+              if (pairing.enabledBacks) {
+                const { settings, update } = useSettingsStore.getState();
+                update({ backs: { ...settings.backs, enabled: false } });
+              }
+              setPairing(null);
+            }}
+          >
+            {t('cards.undo')}
+          </button>
+        </p>
+      ) : null}
       {lastRemoved ? (
         <p className={styles.undo} role="status">
           {t('cards.removed', { name: lastRemoved.card.name || t('cards.blankName') })}

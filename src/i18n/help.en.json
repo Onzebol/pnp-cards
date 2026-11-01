@@ -259,6 +259,26 @@
           "text": "Cards with their own back show a mark with its thumbnail, and “Own backs” above the list shows each image and how many cards use it. Cards with no back leave their slot empty on the backs page."
         },
         {
+          "type": "h",
+          "text": "Backs by file name"
+        },
+        {
+          "type": "p",
+          "text": "When you add images or a folder, those with “trasera”, “reverso”, “dorso” or “back” in their name (as a separate word, after a space, “_” or “-”) become the back of the cards whose names start the same way, and backs are turned on. Whatever follows the word counts too. A back’s “ xN” is not copies. If a card fits two backs, it takes the one with the longer name."
+        },
+        {
+          "type": "list",
+          "items": [
+            "“Deck - Tokens - Back x3.jpg” is the back of “Deck - Tokens 1.jpg”, “Deck - Tokens 2.jpg”…",
+            "“Deck - Back - 1.jpg” is the back of “Deck - 1-1.jpg”, “Deck - 1-2.jpg”…, but not of “Deck - 10-1.jpg”.",
+            "An image named “__back.jpg” (or “__reverso.jpg”) becomes the common back."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "A notice says what has been paired, with “Undo” to keep those images as ordinary cards. A back with no cards in its group is added as a card."
+        },
+        {
           "type": "note",
           "text": "If you don’t choose a common back, cards without their own back are printed with no back. If an own back image isn’t found when you open a project, its cards have no back until you find it in “Own backs”."
         },

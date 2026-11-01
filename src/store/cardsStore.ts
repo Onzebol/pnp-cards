@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Dpi } from '../lib/dpi';
+import { pairBacks } from '../lib/backMatch';
 import { parseCopies } from '../lib/filename';
 import type { Rotation } from '../lib/template';
 
@@ -41,6 +42,31 @@ export type NewImage = Omit<CardImage, 'id' | 'copies' | 'backId'>;
 /** Imagen de un reverso propio, que pueden compartir varias cartas. */
 export type BackImage = NewImage & { id: string };
 
+/** Resumen de lo que se ha emparejado por nombre al añadir imágenes, para avisar. */
+export interface PairingResult {
+  /** Cuántas imágenes han pasado a ser reversos propios. */
+  backs: number;
+  /** A cuántas cartas se les ha dado reverso. */
+  cards: number;
+  /** Nombre de la imagen que ha pasado a ser el reverso común, si alguna. */
+  common: string | null;
+  /** Nombre del primer reverso propio (para el aviso de uno solo). */
+  first: string | null;
+}
+
+/** Lo necesario para deshacer el último emparejamiento: cómo venían las imágenes añadidas. */
+interface LastPairing {
+  /** Posición de la lista en la que se añadieron. */
+  start: number;
+  order: (
+    | { kind: 'card'; id: string }
+    | { kind: 'back'; back: BackImage }
+    | { kind: 'common'; image: NewImage }
+  )[];
+  /** El reverso común que había antes, si el emparejamiento lo cambió. */
+  previousBack?: NewImage | null;
+}
+
 /** Carpeta de las imágenes del proyecto. En Chrome y Edge se guarda el acceso para reabrirla. */
 export interface ImageFolder {
   name: string;
@@ -61,7 +87,18 @@ interface CardsState {
   backs: BackImage[];
   /** Última carta quitada, para poder deshacerlo. */
   lastRemoved: { card: CardImage; index: number } | null;
+  /** Último emparejamiento de reversos por nombre, mientras se pueda deshacer. */
+  lastPairing: LastPairing | null;
   addImages: (images: NewImage[]) => void;
+  /**
+   * Añade imágenes tomando como reversos las que lo son por su nombre (`pairBacks`): pasan a ser
+   * el reverso propio de las cartas de su grupo (las añadidas y las de la lista sin reverso
+   * propio ni marcadas sin reverso), y «__reverso» el común. Devuelve qué se ha emparejado, o
+   * null si nada (entonces las añade como `addImages`).
+   */
+  addImagesPairingBacks: (images: NewImage[]) => PairingResult | null;
+  /** Deshace el último emparejamiento: los reversos vuelven a la lista como cartas. */
+  undoPairing: () => void;
   addBlank: () => void;
   setCopies: (id: string, copies: number) => void;
   /** Marca la carta sin reverso (y le quita el propio) o la devuelve al reverso común. */
@@ -134,6 +171,19 @@ const revokeAll = (s: CardsState) => {
   s.backs.forEach(revoke);
 };
 
+/** Una imagen como carta nueva, con las copias de su nombre. */
+const toCard = (image: NewImage): CardImage => ({
+  ...image,
+  id: crypto.randomUUID(),
+  copies: parseCopies(image.name) ?? 1,
+});
+
+/** Ya no se puede deshacer el emparejamiento: se libera el reverso común que había antes. */
+function dropPairing(s: CardsState): { lastPairing: null } {
+  if (s.lastPairing?.previousBack) revoke(s.lastPairing.previousBack);
+  return { lastPairing: null };
+}
+
 /** La carta sin `backId`. */
 function withoutOwnBack(card: CardImage): CardImage {
   const next = { ...card };
@@ -165,18 +215,95 @@ export const useCardsStore = create<CardsState>()((set) => ({
   back: null,
   backs: [],
   lastRemoved: null,
+  lastPairing: null,
 
   addImages: (images) =>
-    set((s) => ({
-      cards: [
-        ...s.cards,
-        ...images.map((img) => ({
-          ...img,
-          id: crypto.randomUUID(),
-          copies: parseCopies(img.name) ?? 1,
-        })),
-      ],
-    })),
+    set((s) => ({ ...dropPairing(s), cards: [...s.cards, ...images.map(toCard)] })),
+
+  addImagesPairingBacks: (images) => {
+    let result: PairingResult | null = null;
+    set((s) => {
+      const dropped = dropPairing(s);
+      const eligible = s.cards.filter((c) => c.blob && !c.missing && !c.backId && !c.noBack);
+      const pairing = pairBacks(
+        images.map((i) => i.name),
+        eligible.map((c) => c.name),
+      );
+      if (pairing.backs.length === 0 && pairing.common === null) {
+        return { ...dropped, cards: [...s.cards, ...images.map(toCard)] };
+      }
+
+      const backOf = new Map<number, BackImage>();
+      const addedBack = new Map<number, string>();
+      const existingBack = new Map<string, string>();
+      for (const b of pairing.backs) {
+        const back = { ...images[b.image], id: crypto.randomUUID() };
+        backOf.set(b.image, back);
+        b.added.forEach((i) => addedBack.set(i, back.id));
+        b.existing.forEach((i) => existingBack.set(eligible[i].id, back.id));
+      }
+      const order: LastPairing['order'] = [];
+      const added: CardImage[] = [];
+      images.forEach((image, i) => {
+        const back = backOf.get(i);
+        if (i === pairing.common) order.push({ kind: 'common', image });
+        else if (back) order.push({ kind: 'back', back });
+        else {
+          const backId = addedBack.get(i);
+          const card = { ...toCard(image), ...(backId ? { backId } : {}) };
+          added.push(card);
+          order.push({ kind: 'card', id: card.id });
+        }
+      });
+
+      const common = pairing.common === null ? null : images[pairing.common];
+      result = {
+        backs: backOf.size,
+        cards: addedBack.size + existingBack.size,
+        common: common?.name ?? null,
+        first: pairing.backs.length > 0 ? images[pairing.backs[0].image].name : null,
+      };
+      const existing = s.cards.map((c) =>
+        existingBack.has(c.id) ? { ...c, backId: existingBack.get(c.id) } : c,
+      );
+      return {
+        cards: [...existing, ...added],
+        backs: [...s.backs, ...backOf.values()],
+        back: common ?? s.back,
+        lastPairing: {
+          start: s.cards.length,
+          order,
+          ...(common ? { previousBack: s.back } : {}),
+        },
+      };
+    });
+    return result;
+  },
+
+  undoPairing: () =>
+    set((s) => {
+      const p = s.lastPairing;
+      if (!p) return s;
+      const paired = new Set(p.order.flatMap((e) => (e.kind === 'back' ? [e.back.id] : [])));
+      const addedIds = new Set(p.order.flatMap((e) => (e.kind === 'card' ? [e.id] : [])));
+      const current = new Map(s.cards.map((c) => [c.id, c]));
+      // Las imágenes añadidas vuelven a la lista en el orden en que llegaron.
+      const restored = p.order.flatMap((e): CardImage[] => {
+        if (e.kind === 'card') return current.has(e.id) ? [current.get(e.id)!] : [];
+        if (e.kind === 'common') return [toCard(e.image)];
+        const image: NewImage & { id?: string } = { ...e.back };
+        delete image.id;
+        return [toCard(image)];
+      });
+      const cards = s.cards.filter((c) => !addedIds.has(c.id));
+      cards.splice(Math.min(p.start, cards.length), 0, ...restored);
+      return {
+        cards: cards.map((c) => (c.backId && paired.has(c.backId) ? withoutOwnBack(c) : c)),
+        backs: s.backs.filter((b) => !paired.has(b.id)),
+        back: p.previousBack === undefined ? s.back : p.previousBack,
+        lastPairing: null,
+      };
+    }),
 
   addBlank: () =>
     set((s) => ({
@@ -210,7 +337,7 @@ export const useCardsStore = create<CardsState>()((set) => ({
         if (c.id !== id) return c;
         return noBack ? { ...withoutOwnBack(c), noBack } : { ...c, noBack };
       });
-      return { cards, backs: keepUsedBacks(s.backs, cards, s.lastRemoved) };
+      return { ...dropPairing(s), cards, backs: keepUsedBacks(s.backs, cards, s.lastRemoved) };
     }),
 
   addBack: (image) => {
@@ -225,7 +352,7 @@ export const useCardsStore = create<CardsState>()((set) => ({
         if (c.id !== id) return c;
         return backId === null ? withoutOwnBack(c) : { ...c, backId, noBack: false };
       });
-      return { cards, backs: keepUsedBacks(s.backs, cards, s.lastRemoved) };
+      return { ...dropPairing(s), cards, backs: keepUsedBacks(s.backs, cards, s.lastRemoved) };
     }),
 
   setRotation: (id, rotation) =>
@@ -241,11 +368,12 @@ export const useCardsStore = create<CardsState>()((set) => ({
   setBack: (back) =>
     set((s) => {
       if (s.back && s.back !== back) revoke(s.back);
-      return { back };
+      return { ...dropPairing(s), back };
     }),
 
   replaceBack: (id, image) =>
     set((s) => ({
+      ...dropPairing(s),
       backs: s.backs.map((b) => {
         if (b.id !== id) return b;
         revoke(b);
@@ -261,7 +389,12 @@ export const useCardsStore = create<CardsState>()((set) => ({
       if (s.lastRemoved) revoke(s.lastRemoved.card);
       const cards = s.cards.filter((c) => c.id !== id);
       const lastRemoved = { card: s.cards[index], index };
-      return { cards, lastRemoved, backs: keepUsedBacks(s.backs, cards, lastRemoved) };
+      return {
+        ...dropPairing(s),
+        cards,
+        lastRemoved,
+        backs: keepUsedBacks(s.backs, cards, lastRemoved),
+      };
     }),
 
   replaceImage: (id, image) =>
@@ -294,13 +427,13 @@ export const useCardsStore = create<CardsState>()((set) => ({
       const cards = [...s.cards];
       const [card] = cards.splice(from, 1);
       cards.splice(to, 0, card);
-      return { cards };
+      return { ...dropPairing(s), cards };
     }),
 
   clear: () =>
     set((s) => {
       revokeAll(s);
-      return { cards: [], backs: [], lastRemoved: null };
+      return { ...dropPairing(s), cards: [], backs: [], lastRemoved: null };
     }),
 
   setName: (name) => set({ name }),
@@ -317,12 +450,21 @@ export const useCardsStore = create<CardsState>()((set) => ({
         back,
         backs,
         lastRemoved: null,
+        ...dropPairing(s),
       };
     }),
 
   reset: () =>
     set((s) => {
       revokeAll(s);
-      return { name: '', folder: null, cards: [], back: null, backs: [], lastRemoved: null };
+      return {
+        ...dropPairing(s),
+        name: '',
+        folder: null,
+        cards: [],
+        back: null,
+        backs: [],
+        lastRemoved: null,
+      };
     }),
 }));
