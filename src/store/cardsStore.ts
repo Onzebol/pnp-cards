@@ -99,6 +99,17 @@ interface CardsState {
   addImagesPairingBacks: (images: NewImage[]) => PairingResult | null;
   /** Deshace el último emparejamiento: los reversos vuelven a la lista como cartas. */
   undoPairing: () => void;
+  /**
+   * Al desactivar los reversos: cada reverso propio vuelve a la lista como carta normal (con
+   * las copias de su nombre), detrás de la última carta que lo usaba.
+   */
+  backsToCards: () => void;
+  /**
+   * Al activar los reversos: las cartas de la lista con nombre de reverso pasan a ser el reverso
+   * propio de las de su grupo (`pairBacks`), y «__reverso» el común si no hay. Devuelve cuántos
+   * reversos propios ha creado.
+   */
+  cardsToBacks: () => number;
   addBlank: () => void;
   setCopies: (id: string, copies: number) => void;
   /** Marca la carta sin reverso (y le quita el propio) o la devuelve al reverso común. */
@@ -370,6 +381,67 @@ export const useCardsStore = create<CardsState>()((set) => ({
       if (s.back && s.back !== back) revoke(s.back);
       return { ...dropPairing(s), back };
     }),
+
+  backsToCards: () =>
+    set((s) => {
+      if (s.backs.length === 0) return s;
+      const cards: CardImage[] = s.cards.map((c) => (c.backId ? withoutOwnBack(c) : c));
+      for (const back of s.backs) {
+        const image: NewImage & { id?: string } = { ...back };
+        delete image.id;
+        // Detrás de la última carta que lo usa (o al final, si ya no lo usa ninguna).
+        const lastUser = s.cards.findLast((c) => c.backId === back.id);
+        const at = lastUser ? cards.findIndex((c) => c.id === lastUser.id) + 1 : cards.length;
+        cards.splice(at, 0, toCard(image));
+      }
+      const lastRemoved = s.lastRemoved && {
+        ...s.lastRemoved,
+        card: withoutOwnBack(s.lastRemoved.card),
+      };
+      return { ...dropPairing(s), cards, backs: [], lastRemoved };
+    }),
+
+  cardsToBacks: () => {
+    let created = 0;
+    set((s) => {
+      const pairing = pairBacks(
+        s.cards.map((c) => c.name),
+        [],
+      );
+      const eligible = (c: CardImage) => !!c.blob && !c.missing && !c.backId && !c.noBack;
+      const toBack = new Map<number, BackImage>();
+      const assign = new Map<number, string>();
+      for (const b of pairing.backs) {
+        const receivers = b.added.filter((i) => eligible(s.cards[i]));
+        if (receivers.length === 0) continue;
+        const card: Partial<CardImage> = { ...s.cards[b.image] };
+        delete card.copies;
+        delete card.rotation;
+        delete card.noBack;
+        delete card.backId;
+        const back = { ...(card as NewImage), id: crypto.randomUUID() };
+        toBack.set(b.image, back);
+        receivers.forEach((i) => assign.set(i, back.id));
+      }
+      const common = pairing.common !== null && !s.back ? s.cards[pairing.common] : null;
+      created = toBack.size;
+      if (created === 0 && !common) return s;
+      const cards = s.cards.flatMap((c, i) => {
+        if (toBack.has(i) || c === common) return [];
+        const backId = assign.get(i);
+        return [backId ? { ...c, backId } : c];
+      });
+      let back = s.back;
+      if (common) {
+        const image: Partial<CardImage> = { ...common };
+        delete image.id;
+        delete image.copies;
+        back = image as NewImage;
+      }
+      return { ...dropPairing(s), cards, backs: [...s.backs, ...toBack.values()], back };
+    });
+    return created;
+  },
 
   replaceBack: (id, image) =>
     set((s) => ({

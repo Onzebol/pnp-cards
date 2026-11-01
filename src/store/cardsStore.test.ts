@@ -279,6 +279,70 @@ describe('cardsStore', () => {
     });
   });
 
+  describe('al desactivar y activar los reversos', () => {
+    beforeEach(() => {
+      URL.revokeObjectURL = vi.fn();
+    });
+    const list = () => store().cards.map((c) => [c.name, c.copies, c.backId ?? null]);
+
+    it('los reversos propios vuelven a la lista como cartas, tras la última carta que los usa', () => {
+      store().addImagesPairingBacks([
+        image('elfo - arquero.png'),
+        image('elfo - mago.png'),
+        image('elfo - trasera x2.png'),
+        image('orco.png'),
+        image('serpiente.png'),
+      ]);
+      const orco = store().cards[2];
+      store().setOwnBack(orco.id, store().addBack(image('a mano.png')));
+      store().backsToCards();
+      expect(list()).toEqual([
+        ['elfo - arquero.png', 1, null],
+        ['elfo - mago.png', 1, null],
+        ['elfo - trasera x2.png', 2, null],
+        ['orco.png', 1, null],
+        ['a mano.png', 1, null],
+        ['serpiente.png', 1, null],
+      ]);
+      expect(store().backs).toEqual([]);
+    });
+
+    it('al activarlos, empareja por nombre las cartas de la lista', () => {
+      store().addImages([
+        image('elfo - arquero.png'),
+        image('elfo - trasera x2.png'),
+        image('elfo - mago.png'),
+        image('elfo - druida.png'),
+        image('dragón - trasera.png'),
+      ]);
+      store().setNoBack(store().cards[3].id, true);
+      expect(store().cardsToBacks()).toBe(1);
+      expect(store().backs.map((b) => b.name)).toEqual(['elfo - trasera x2.png']);
+      const back = store().backs[0].id;
+      expect(list()).toEqual([
+        ['elfo - arquero.png', 1, back],
+        ['elfo - mago.png', 1, back],
+        ['elfo - druida.png', 1, null],
+        ['dragón - trasera.png', 1, null],
+      ]);
+    });
+
+    it('desactivar y volver a activar deja los reversos por nombre como estaban', () => {
+      store().addImagesPairingBacks([
+        image('templo - egipcio.png'),
+        image('templo - fenicio.png'),
+        image('templo - trasera x2.png'),
+      ]);
+      store().backsToCards();
+      store().cardsToBacks();
+      const back = store().backs[0].id;
+      expect(list()).toEqual([
+        ['templo - egipcio.png', 1, back],
+        ['templo - fenicio.png', 1, back],
+      ]);
+    });
+  });
+
   it('añade una imagen en blanco al final', () => {
     store().addImages([image('a.png')]);
     store().addBlank();

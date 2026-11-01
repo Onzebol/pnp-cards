@@ -9,6 +9,7 @@ import { buildAlignmentSheet as defaultBuildSheet } from '../../pdf/alignmentShe
 import { useCardsStore, type NewImage } from '../../store/cardsStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import { IMAGE_ACCEPT } from '../../lib/imageFormat';
+import { setBacksEnabled } from './backsToggle';
 import { HeicOfflineError, loadImage as defaultLoadImage } from './loadImages';
 import styles from './SettingsPanel.module.css';
 
@@ -77,7 +78,7 @@ export function BackSettings({
         label={t('settings.backsEnabled')}
         hint={t('settings.backsHint')}
         checked={backs.enabled}
-        onChange={(enabled) => update({ backs: { ...backs, enabled } })}
+        onChange={setBacksEnabled}
       />
       {backs.enabled ? (
         <FieldRow>

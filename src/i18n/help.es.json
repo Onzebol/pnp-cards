@@ -359,6 +359,10 @@
           "text": "Un aviso dice qué se ha emparejado, con «Deshacer» para dejar esas imágenes como cartas normales. Un reverso sin ninguna carta de su grupo se añade como carta."
         },
         {
+          "type": "p",
+          "text": "Si desmarcas «Añadir reversos», los reversos propios vuelven a la lista como cartas normales (con las copias de su « xN»), detrás de sus cartas. Al marcarlo otra vez, se emparejan de nuevo por su nombre; los que elegiste a mano con otro nombre se quedan como cartas y tendrás que volver a elegirlos."
+        },
+        {
           "type": "note",
           "text": "Si no eliges reverso común, las cartas sin reverso propio salen sin reverso. Si al abrir un proyecto no se encuentra la imagen de un reverso propio, sus cartas salen sin reverso hasta que la busques en «Reversos propios»."
         },

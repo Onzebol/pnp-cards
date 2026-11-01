@@ -26,6 +26,7 @@ import { useSettingsStore } from '../../store/settingsStore';
 import { IMAGE_ACCEPT } from '../../lib/imageFormat';
 import { CardTile } from './CardTile';
 import { OwnBacks } from './OwnBacks';
+import { setBacksEnabled } from './backsToggle';
 import { autoRotatedOf, rotationsOf } from './rotations';
 import { loadImages as defaultLoadImages, looseFiles, type LoadResult } from './loadImages';
 import styles from './CardTray.module.css';
@@ -93,9 +94,8 @@ export function CardTray({
       const paired = useCardsStore.getState().addImagesPairingBacks(result.images);
       if (paired) {
         // Si se han encontrado reversos, los reversos se activan: si no, no se verían.
-        const { settings, update } = useSettingsStore.getState();
-        const enabledBacks = !settings.backs.enabled;
-        if (enabledBacks) update({ backs: { ...settings.backs, enabled: true } });
+        const enabledBacks = !useSettingsStore.getState().settings.backs.enabled;
+        if (enabledBacks) setBacksEnabled(true);
         setPairing({ text: pairingText(t, paired, enabledBacks), enabledBacks });
       }
       setFailed(result.failed);
@@ -217,10 +217,7 @@ export function CardTray({
             className={styles.link}
             onClick={() => {
               useCardsStore.getState().undoPairing();
-              if (pairing.enabledBacks) {
-                const { settings, update } = useSettingsStore.getState();
-                update({ backs: { ...settings.backs, enabled: false } });
-              }
+              if (pairing.enabledBacks) setBacksEnabled(false);
               setPairing(null);
             }}
           >

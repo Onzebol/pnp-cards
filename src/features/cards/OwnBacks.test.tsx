@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import i18n from '../../i18n';
 import { useCardsStore, type NewImage } from '../../store/cardsStore';
 import { useSettingsStore } from '../../store/settingsStore';
+import { BackSettings } from './BackSettings';
 import { CardTray } from './CardTray';
 
 vi.mock('./loadImages', async (importOriginal) => ({
@@ -212,5 +213,42 @@ describe('emparejar reversos al añadir imágenes', () => {
     expect(await screen.findByText('dragón - trasera.png')).toBeInTheDocument();
     expect(screen.queryByText(/Por su nombre/)).not.toBeInTheDocument();
     expect(useSettingsStore.getState().settings.backs.enabled).toBe(false);
+  });
+});
+
+describe('activar y desactivar los reversos', () => {
+  it('sin reversos, los reversos propios salen en la lista como cartas; al volver, se emparejan', async () => {
+    const user = userEvent.setup();
+    enableBacks();
+    store().addImagesPairingBacks([
+      image('templo - egipcio.png'),
+      image('templo - fenicio.png'),
+      image('templo - trasera x2.png'),
+    ]);
+    render(
+      <>
+        <BackSettings />
+        <CardTray />
+      </>,
+      { wrapper: MemoryRouter },
+    );
+    // Se abre la sección «Reverso» de los ajustes (su título, no la marca de las cartas).
+    await user.click(screen.getByText('Reverso', { selector: 'summary' }));
+
+    await user.click(screen.getByLabelText(/Añadir reversos/));
+    expect(useSettingsStore.getState().settings.backs.enabled).toBe(false);
+    expect(screen.getByText('templo - trasera x2.png')).toBeInTheDocument();
+    expect(store().cards.map((c) => [c.name, c.copies])).toEqual([
+      ['templo - egipcio.png', 1],
+      ['templo - fenicio.png', 1],
+      ['templo - trasera x2.png', 2],
+    ]);
+
+    await user.click(screen.getByLabelText(/Añadir reversos/));
+    expect(store().cards.map((c) => c.name)).toEqual([
+      'templo - egipcio.png',
+      'templo - fenicio.png',
+    ]);
+    expect(screen.getAllByTitle('Reverso propio: templo - trasera x2.png')).toHaveLength(2);
   });
 });
