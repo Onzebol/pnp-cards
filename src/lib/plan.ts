@@ -1,4 +1,4 @@
-import { bleedRects, type Rect } from './bleed';
+import { bleedRects, type BleedBand } from './bleed';
 import { cardSize, rotatedImage, type Size } from './cardSize';
 import { cornerRadius } from './corners';
 import { coverCrop, CROP_DPI, cropRect, type PxRect } from './crop';
@@ -62,7 +62,8 @@ export interface PlannedPage {
   side: 'front' | 'back';
   size: Size;
   items: PlannedItem[];
-  bleed: Rect[];
+  /** Bandas del margen de corte, con la carta y el lado que rellena cada una. */
+  bleed: BleedBand[];
   cutLines: CutLines | null;
   /** Cabecera con el nombre y el número de hoja; solo en páginas de cartas, si cabe. */
   header: HeaderPlacement | null;
@@ -168,6 +169,7 @@ function backPage(
     bleed: bleedRects(
       items.map((i) => i.placement),
       settings,
+      items.map((_, i) => i),
     ),
     cutLines: null,
     header: null,
@@ -188,7 +190,10 @@ export function translatePage(page: PlannedPage, dx: number, dy: number): Planne
       ...item,
       placement: { ...item.placement, x: item.placement.x + dx, y: item.placement.y + dy },
     })),
-    bleed: page.bleed.map((r) => ({ ...r, x: r.x + dx, y: r.y + dy })),
+    bleed: page.bleed.map((b) => ({
+      ...b,
+      rect: { ...b.rect, x: b.rect.x + dx, y: b.rect.y + dy },
+    })),
     header: page.header && {
       ...page.header,
       start: { x: page.header.start.x + dx, y: page.header.start.y + dy },
@@ -237,9 +242,18 @@ function withBacks(
  * (todos los huecos, con la carta de referencia) para que quede en el mismo sitio en todas las
  * páginas, también en la última aunque tenga menos cartas.
  */
+/** Rectángulos del margen de corte para buscar sitio: aquí la carta que los rellena no importa. */
+function bleedRectsForFit(settings: LayoutSettings, frame: Placement[]) {
+  return bleedRects(
+    frame,
+    settings,
+    frame.map(() => null),
+  ).map((b) => b.rect);
+}
+
 function pageHeader(settings: LayoutSettings, page: Size, frame: Placement[]) {
   if (!settings.header) return null;
-  return headerPlacement(page, frame, bleedRects(frame, settings));
+  return headerPlacement(page, frame, bleedRectsForFit(settings, frame));
 }
 
 /**
@@ -249,7 +263,7 @@ function pageHeader(settings: LayoutSettings, page: Size, frame: Placement[]) {
 function pageExtras(settings: LayoutSettings, page: Size, frame: Placement[]) {
   const header = pageHeader(settings, page, frame);
   const ruler = settings.ruler.enabled
-    ? rulerPlacement(page, frame, bleedRects(frame, settings), header)
+    ? rulerPlacement(page, frame, bleedRectsForFit(settings, frame), header)
     : null;
   const rulerOn = (number: number) => (settings.ruler.allPages || number === 1 ? ruler : null);
   return { header, rulerOn };
@@ -302,7 +316,11 @@ function planTemplate(
       side: 'front',
       size: page,
       items,
-      bleed: bleedRects(boxes, settings),
+      bleed: bleedRects(
+        boxes,
+        settings,
+        items.map((item, i) => (cards[item.card].blank ? null : i)),
+      ),
       header,
       ruler: rulerOn(pages.length + 1),
       cornerRadius: radius,
@@ -365,19 +383,24 @@ export function planDocument(
     const pageCards = sequence.slice(start, start + perPage);
     const pageSizes = pageCards.map((i) => sizes[i]);
     const { page, placements } = layoutPage(settings, pageSizes, reference);
+    const items: PlannedItem[] = pageCards.map((card, i) => ({
+      card,
+      placement: placements[i],
+      crop: crops[card],
+      // Sin giro, la carta va derecha (y su reverso también, como hasta ahora).
+      ...(rotations[card] === 0 ? {} : { rotation: rotations[card] }),
+    }));
     pages.push({
       number,
       sheet: number,
       side: 'front',
       size: page,
-      items: pageCards.map((card, i) => ({
-        card,
-        placement: placements[i],
-        crop: crops[card],
-        // Sin giro, la carta va derecha (y su reverso también, como hasta ahora).
-        ...(rotations[card] === 0 ? {} : { rotation: rotations[card] }),
-      })),
-      bleed: bleedRects(placements, settings),
+      items,
+      bleed: bleedRects(
+        placements,
+        settings,
+        items.map((item, i) => (cards[item.card].blank ? null : i)),
+      ),
       cutLines: cutLines(settings, pageSizes[0], reference),
       header,
       ruler: rulerOn(number),

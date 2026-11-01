@@ -11,10 +11,12 @@ describe('settingsStore', () => {
 
   it('actualiza parte de la configuración', () => {
     useSettingsStore.getState().update({ marginMm: 5 });
-    useSettingsStore.getState().update({ bleed: { enabled: true, mm: 3, color: '#ff0000' } });
+    useSettingsStore
+      .getState()
+      .update({ bleed: { enabled: true, mm: 3, color: '#ff0000', fill: 'color' } });
     const s = useSettingsStore.getState().settings;
     expect(s.marginMm).toBe(5);
-    expect(s.bleed).toEqual({ enabled: true, mm: 3, color: '#ff0000' });
+    expect(s.bleed).toEqual({ enabled: true, mm: 3, color: '#ff0000', fill: 'color' });
     expect(s.mode).toBe('vertical9');
   });
 

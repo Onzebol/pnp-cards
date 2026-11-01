@@ -101,7 +101,12 @@ describe('parseBsk', () => {
       color: '#ff0000',
       widthHundredthsMm: 6,
     });
-    expect(project.settings.bleed).toEqual({ enabled: true, mm: 3, color: '#ffffff' });
+    expect(project.settings.bleed).toEqual({
+      enabled: true,
+      mm: 3,
+      color: '#ffffff',
+      fill: 'color',
+    });
   });
 
   it('lista las imágenes con sus copias; una ruta vacía es una imagen en blanco', () => {
